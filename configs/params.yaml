@@ -1,0 +1,78 @@
+# ROS node
+
+# sub
+# simulation
+front_color_topic: '/nav_front_rs/camera/color/image_raw'
+back_color_topic:  '/nav_back_rs/camera/color/image_raw'
+# thorvald
+# front_color_topic: '/phenobot/rs_nav_front/color/image_raw'
+# back_color_topic:  '/phenobot/rs_nav_back/color/image_raw'
+
+#pub
+# simulation
+cmd_vel_topic: /phenobot/twist_mux/cmd_vel
+# thorvlad
+# cmd_vel_topic: /twist_mux/cmd_vel
+
+#  node params
+update rate: 30
+queue_size: 5
+
+img_resize_scale: 100
+
+stationary_debug: False
+# run time params
+# Mode 1: Driving forward with front camera (starting mode)
+# Mode 2: Driving forward with back camera
+# Mode 3: Driving backwards with back camera
+# Mode 4: Driving backwards with front camera
+nav_mode: 1
+# angular velocity scaler
+max_linear_vel: 0.1 
+min_linear_vel: 0.01 
+angular_scaler: 0.1
+max_angular_vel: 0.05 
+min_angular_vel: 0.01
+# Parameter for setting the number of rows to pass in one switch
+lines_to_pass: 1
+# Max Offset of the Window for extracting the turn features
+max_matching_dif_features: 100
+# Min Offset of the Window for extracting the turn features
+min_matching_dif_features: 0
+# Threshold for keypoints
+matching_keypoints_th: 20
+
+winSweepStart: 100
+winSweepEnd: 980
+winMinWidth: 128
+# W/8 for small plants, W/5 for big plants
+winSize: 128
+# for filtering contours
+min_contour_area: 300
+# for dividing bushy rows
+max_coutour_height: 120
+#  in case of using bigger size image size, we suggest to set ROI 
+p1: 
+ - 0
+ - 0
+p2:
+ - 1
+ - 0
+p3:
+ - 50
+ - 720
+p4:
+ - 0
+ - 720
+p5: 
+ - 1280
+ - 0
+p6:
+ - 1280
+ - 0
+p7:
+ - 1200
+ - 720
+p8: 
+ - 1280
+ - 720
