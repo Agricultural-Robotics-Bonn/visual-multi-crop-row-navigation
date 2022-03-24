@@ -1,6 +1,9 @@
        
 # Visual Multi Crop Row Navigation in Arable Farming Fields      
 
+<div align="center">
+	<img src="data/motivation.png" alt="BonnBot" height="180" title="BonnBot"/>
+</div>
 
 ### pyCUDA installation (optional)
 
