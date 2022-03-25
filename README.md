@@ -5,6 +5,8 @@
 	<img src="data/motivation.png" alt="BonnBot" height="340" title="BonnBot"/>
 </div>
 
+Check out the [video1](https://youtu.be/z2Cb2FFZ2aU?t=43), [video2](https://youtu.be/z2Cb2FFZ2aU?t=72) of our robot following this approach to navigate on a real multi lace row-crop field (beans).
+
 ### pyCUDA installation (optional)
 
 	wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64$
