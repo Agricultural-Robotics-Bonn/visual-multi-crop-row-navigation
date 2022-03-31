@@ -6,6 +6,11 @@
 </div>
 
 Check out the [video1](https://youtu.be/z2Cb2FFZ2aU?t=43), of our robot following this approach to navigate on a real multi lace row-crop field (beans field).
+<div align="center">
+	
+[![IMAGE ALT TEXT HERE](https://img.youtube.com/vi/z2Cb2FFZ2aU/0.jpg)](https://www.youtube.com/watch?v=z2Cb2FFZ2aU)
+	
+</div>
 
 ### pyCUDA installation (optional)
 
