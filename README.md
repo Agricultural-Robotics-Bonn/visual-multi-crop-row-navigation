@@ -54,6 +54,7 @@ launch main script:
     
 
 ### Dependencies:
+- Thorvald Platfrom package [Thorvald Saga](https://www.nmbu.no/en/faculty/realtek/research/groups/roboticsandcontrol/thorvaldinstall/node/34632)
 - ROS Melodic
 - python packages:
 
