@@ -3,7 +3,7 @@
 import numpy as np
 import matplotlib.pyplot as plt 
 # funciton to compute the moving standard deviation for a given window size
-def movingStd(data, winSize):
+def movingStd(data, winSize=5):
     # compute a moving standard deviation
     stdVec = np.zeros((len(data)-winSize,1))
     for i in range(0,len(stdVec)):

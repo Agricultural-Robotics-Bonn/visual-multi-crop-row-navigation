@@ -11,11 +11,11 @@ def wrapToPi(theta):
 
 
 # Function to compute the controls given the current state and the desired state and velocity
-def Controller (camera, desired_state, actual_state, v_des):
+def Controller (camera, desiredState, actualState, v_des):
     # specifiy the acutal state for better readability
-    x = actual_state[0]
-    y = actual_state[1]
-    theta = actual_state[2]
+    x = actualState[0]
+    y = actualState[1]
+    theta = actualState[2]
     
     # some crazy parameters   
     lambda_x_1 = 10
@@ -57,8 +57,8 @@ def Controller (camera, desired_state, actual_state, v_des):
     Jac_ang_pi = np.linalg.pinv([Jac_ang])
     
     # Compute the delta, in this case the difference between the actual state and the desired state
-    trans_delta = actual_state[controller_type] - desired_state[controller_type]
-    ang_delta = actual_state[2] - desired_state[2]
+    trans_delta = actualState[controller_type] - desiredState[controller_type]
+    ang_delta = actualState[2] - desiredState[2]
     delta = np.array([trans_delta,wrapToPi(ang_delta)])
     
     # Compute the feedback control for the angular velocity
