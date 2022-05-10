@@ -6,8 +6,9 @@ import numpy as np
 from scipy.signal import find_peaks
 from matplotlib import pyplot as plt
 from movingVariance  import movingStd
+import itertools
 
-class FeatureExtractor:
+class featureExtractor:
     def __init__(self, windowProp, roiProp, fexProp):
         """# class FeatureExtractor to extract the the line Features: bottom point, angle
 
@@ -25,7 +26,7 @@ class FeatureExtractor:
         self.pointsT = 0
         self.pointsB = 0
         self.lineFound = False
-        self.initBool = False
+        self.isInitialized = False
         self.bushy = False
 
         self.roiProp = roiProp
@@ -52,11 +53,16 @@ class FeatureExtractor:
         self.max_coutour_height = fexProp["max_coutour_height"]
         
         # search parameters
-        self.steps = 100
+        self.steps = 50
         self.winSweepStart = []
         self.winSweepEnd = []
+
+        self.count = 0
+
+        self.numVec= np.zeros((300,1))
+        self.meanVec = np.zeros((300,1))
            
-    def setImgProp(self,img):
+    def setImgProp(self, img):
         """function to set the image and its properties
 
         Args:
@@ -81,28 +87,27 @@ class FeatureExtractor:
         Args:
             bushy (bool, optional): _description_. Defaults to False.
         """
+        # if crop canopy type is busshy like Coriander
         self.bushy = bushy
+        # check if current image is not Empty or None
         if self.img is None or len(self.img) == 0:
-            print("Set image first!")
+            print("#[ERR] feEx - Image is None, Check Topics or the Sensor !")
         else:
-            # print("Searching for crop rows, please wait...")
-
+            print("#[INF] feEx - Searching for crop rows, please wait...")
             # steps create linspace
             winidx = np.linspace(self.winSweepStart, self.winSweepEnd, self.steps)
-
             # search for lines at given window locations using LQ-Adjustment
             lParams, winLoc, _= self.getLinesAtWindow(winidx)
-
-            if len(lParams) !=0:
+            # if any feature is observed during the scan
+            if len(lParams) != 0:
                 np.set_printoptions(suppress=True)
-
                 # compute moving standard deviation
-                movVarM = movingStd(lParams[:,1], int(self.steps/10))
-                
+                movVarM = movingStd(lParams[:,1])
+                # find positive an negative peaks of the signal
                 peaksNeg, peaksPos = self.findPicks(movVarM, 0.5)
-                
+                # locate best lines 
                 self.findBestLines(peaksPos, peaksNeg, movVarM, lParams, winLoc)
-
+                # if there is any proper line to follow
                 if len(self.paramsBest) != 0:
                     # get intersections of the lines with the image borders and 
                     # average these to get the main line
@@ -112,18 +117,15 @@ class FeatureExtractor:
                     self.botIntersect = avgLineIntersect[1]
                     self.lineStart = [avgLineIntersect[1], self.imgHeight]
                     self.lineEnd = [avgLineIntersect[0], 0]
-                    
                     # main features
                     self.P = self.cameraToImage([self.botIntersect, self.imgHeight]) 
                     self.ang = self.computeTheta(self.lineStart, self.lineEnd)
-                    
                     # set parameters indicating a successfull initialization
-                    self.initBool = True
+                    self.isInitialized = True
                     self.lineFound = True
-                    
-                    # print('--- Initialisation completed ---')
-                    # print('  # Crop Rows:', len( self.paramsBest))
-                    # print('  Window positions:', self.windowLocations)
+                    print('--- Initialisation completed ---')
+                    print('  # Crop Rows:', len( self.paramsBest))
+                    print('  Window positions:', self.windowLocations)
                     
                 else:
                     print('--- Initialisation failed - No lines detected due to peak detection ---')
@@ -140,7 +142,6 @@ class FeatureExtractor:
         peaksNeg, _ = find_peaks(-movVarM)
         # find positive peaks (=least stable lines = crop row transition)
         peaksPos, _ = find_peaks(movVarM, prominence=0.5)
-
         return peaksNeg, peaksPos
 
     def findBestLines(self, peaksPos, peaksNeg, movVarM, lParams, winLoc):
@@ -238,8 +239,8 @@ class FeatureExtractor:
                 allLineIntersect = np.c_[self.lineIntersectWin(lParams[:,1], lParams[:,0])]
 
                 # store start and end points of lines - mainly for plotting
-                self.allLineStart = np.c_[allLineIntersect[:,1], self.imgHeight-self.offsB * np.ones((len(lParams),1))]
-                self.allLineEnd = np.c_[allLineIntersect[:,0], self.offsT * np.ones((len(lParams),1))]
+                self.allLineStart = np.c_[allLineIntersect[:,0], self.imgHeight - self.offsB * np.ones((len(lParams),1))]
+                self.allLineEnd = np.c_[allLineIntersect[:,1], self.offsT * np.ones((len(lParams),1))]
 
                 for line in range(len(self.allLineEnd)):
                     ang = self.computeTheta(self.allLineStart[line], self.allLineEnd[line])
@@ -262,7 +263,7 @@ class FeatureExtractor:
 
         return self.mask
 
-    def is_on_right_side(self, x, y, xy0, xy1):
+    def isOnRightSide(self, x, y, xy0, xy1):
         x0, y0 = xy0
         x1, y1 = xy1
         a = float(y1 - y0)
@@ -270,9 +271,9 @@ class FeatureExtractor:
         c = - a*x0 - b*y0
         return a*x + b*y + c >= 0
 
-    def test_point(self, x, y, vertices):
+    def testPoint(self, x, y, vertices):
         num_vert = len(vertices)
-        is_right = [self.is_on_right_side(x, y, vertices[i], vertices[(i + 1) % num_vert]) for i in range(num_vert)]
+        is_right = [self.isOnRightSide(x, y, vertices[i], vertices[(i + 1) % num_vert]) for i in range(num_vert)]
         all_left = not any(is_right)
         all_right = all(is_right)
         return all_left or all_right
@@ -288,7 +289,7 @@ class FeatureExtractor:
         """
         # greenidx, contour center points
         rawdata,x,y = self.getImageData()
-        
+
         # initialization
         lParams = np.zeros((len(winidx),2))
         winLoc = np.zeros((len(winidx),1))
@@ -299,11 +300,11 @@ class FeatureExtractor:
         # counting the points in the top and bottom half
         self.pointsB = 0
         self.pointsT = 0
-        
+
         # for all windows
         for i in range(0, len(winidx)):
             # define window
-            if self.initBool and len(self.linesTracked) != 0:
+            if self.isInitialized and len(self.linesTracked) != 0:
                 # If the feature extractor is already initalized, winidx is 
                 # basically being ignored.
                 # Instead of centering the window around winidx[i], the window
@@ -315,10 +316,10 @@ class FeatureExtractor:
                 win_intersect = self.lineIntersectWin(self.linesTracked[i,1], self.linesTracked[i,0])
                 
                 # window corner points are left and right of these
-                xWinBL = max(win_intersect[1]-self.winSize/2,0)
-                xWinBR = min(xWinBL+self.winSize,self.imgWidth)   
-                xWinTL = max(win_intersect[0]-self.winSize/2 * self.winRatio,0)
-                xWinTR = min(xWinTL+self.winSize*self.winRatio,self.imgWidth)
+                xWinBL = max(win_intersect[1] - self.winSize/2, 0)
+                xWinBR = min(xWinBL + self.winSize, self.imgWidth)   
+                xWinTL = max(win_intersect[0] - self.winSize/2 * self.winRatio, 0)
+                xWinTR = min(xWinTL + self.winSize * self.winRatio, self.imgWidth)
                            
                 # y untouched (like normal rectangular)
                 yWinB = self.offsB
@@ -340,18 +341,17 @@ class FeatureExtractor:
                 self.windowPoints[i,:] = [xWinBL, xWinTL, xWinTR, xWinBR, self.imgHeight-yWinB, self.imgHeight-yWinT]
          
             ptsIn = np.zeros((len(x),2))
-            
+
             # get points inside window
             for m in range(0, len(x)):
                 # checking #points in upper/lower half of the image
-
                 if y[m] > self.imgHeight/2:
                     self.pointsT += 1
                 else:
                     self.pointsB += 1
                 
                 # different query needed, if the window is a parallelogram
-                if self.initBool and len(self.linesTracked) != 0 and self.linesTracked is not None:
+                if self.isInitialized and len(self.linesTracked) != 0 and self.linesTracked is not None:
                     # get the x value of the tracked line of the previous step
                     # at the y value of the query point
                     lXAtY = self.lineIntersectY(self.linesTracked[i,1], self.linesTracked[i,0], y[m])
@@ -381,13 +381,13 @@ class FeatureExtractor:
                     
             # remove zero rows
             ptsIn = ptsIn[~np.all(ptsIn == 0, axis=1)]
-            
+
             # line fit
             if len(ptsIn) > 2:
                 # flipped points
                 ptsFlip = np.flip(ptsIn, axis=1)
 
-                xM, xB = self.getLine_rphi(ptsFlip)
+                xM, xB = self.getLineRphi(ptsFlip)
                 t_i, b_i = self.lineIntersectIMG(xM, xB)                   
                 l_i, r_i = self.lineIntersectSides(xM, xB)
 
@@ -399,7 +399,7 @@ class FeatureExtractor:
                     
                     # store the window location, which generated these line
                     # parameters
-                    if self.initBool == False:
+                    if self.isInitialized == False:
                         winLoc[i] = winidx[i]
         
                     # mean x value of all points used for fitting the line
@@ -408,7 +408,7 @@ class FeatureExtractor:
         
         # if the feature extractor is initalized, adjust the window
         # size with the variance of the line fit
-        if self.initBool and var is not None:
+        if self.isInitialized and var is not None:
             self.winSize = max(3*var, self.winMinWidth)
             # print(self.winSize)
 
@@ -416,6 +416,7 @@ class FeatureExtractor:
         lParams = lParams[~np.all(lParams == 0, axis=1)]
         winLoc = winLoc[~np.all(winLoc == 0, axis=1)]
         winMean = winMean[~np.all(winMean == 0, axis=1)]
+
         return lParams, winLoc, winMean
     
     def getImageData(self):
@@ -426,16 +427,16 @@ class FeatureExtractor:
         """
         # change datatype to enable negative values for self.greenIDX calculation
         imgInt32 = self.img.astype('int32')
+        # defining ROI windown on the image
+        if self.roiProp["enable_roi"]:
+            r_pts = [self.roiProp["p1"], self.roiProp["p2"], self.roiProp["p3"], self.roiProp["p4"]]
+            l_pts = [self.roiProp["p5"], self.roiProp["p6"], self.roiProp["p7"], self.roiProp["p8"]]
+
+            cv.fillPoly(imgInt32, np.array([r_pts]), (0, 0, 0))
+            cv.fillPoly(imgInt32, np.array([l_pts]), (0, 0, 0))
 
         # cv.imshow("RGB image",self.img)
         # self.handleKey()
-
-        # defining ROI windown on the image
-        r_pts = [self.roiProp["p1"], self.roiProp["p2"], self.roiProp["p3"], self.roiProp["p4"]]
-        l_pts = [self.roiProp["p5"], self.roiProp["p6"], self.roiProp["p7"], self.roiProp["p8"]]
-
-        cv.fillPoly(imgInt32, np.array([r_pts]), (0, 0, 0))
-        cv.fillPoly(imgInt32, np.array([l_pts]), (0, 0, 0))
 
         # Vegetation Mask
         r = imgInt32[:,:,0]
@@ -445,8 +446,8 @@ class FeatureExtractor:
         # calculate Excess Green Index and filter out negative values
         self.greenIDX = 2*g - r - b
         self.greenIDX[self.greenIDX<0] = 0
-
         self.greenIDX = self.greenIDX.astype('uint8')
+
         # Otsu's thresholding after gaussian smoothing
         blur = cv.GaussianBlur(self.greenIDX,(5,5),0)
         self.threshold,threshIMG = cv.threshold(blur,0,255,cv.THRESH_BINARY+cv.THRESH_OTSU)
@@ -460,9 +461,8 @@ class FeatureExtractor:
         # threshIMG= cv.erode(threshIMG, er_kernel)
 
         # find contours
-        contours, hierarchy = cv.findContours(threshIMG, cv.RETR_TREE, cv.CHAIN_APPROX_NONE)
+        contours = cv.findContours(threshIMG, cv.RETR_TREE, cv.CHAIN_APPROX_NONE)[1]
         self.mask = threshIMG
-
         # cv.imshow("crop rows mask",self.mask)
         # self.handleKey()
 
@@ -477,7 +477,7 @@ class FeatureExtractor:
                     cn_x, cn_y, cnt_w, cn_h = cv.boundingRect(contours[i])
 
                     # split to N contours h/max_coutour_height
-                    sub_contours = self.split_contours(contours[i], cn_x, cn_y, cnt_w, cn_h)
+                    sub_contours = self.splitContours(contours[i], cn_x, cn_y, cnt_w, cn_h)
                     for j in sub_contours:
                         if j != []:
                             self.filtered_contours.append(j)
@@ -496,14 +496,7 @@ class FeatureExtractor:
 
         return contCenterPTS, x, y
 
-    def handleKey(self, sleepTime=0):
-        key = cv.waitKey(sleepTime)
-        # Close program with keyboard 'q'
-        if key == ord('q'):
-            cv.destroyAllWindows()
-            exit(1)
-
-    def split_contours(self, contour, x, y, w, h):
+    def splitContours(self, contour, x, y, w, h):
         """splits larg contours in smaller regions 
 
         Args:
@@ -535,7 +528,7 @@ class FeatureExtractor:
 
         return sub_polys
 
-    def sort_contours(self, cnts, method="left-to-right"):
+    def sortContours(self, cnts, method="left-to-right"):
         """initialize the reverse flag and sort index
 
         Args:
@@ -619,7 +612,7 @@ class FeatureExtractor:
         Returns:
             _type_: angle of line
         """
-        return -(np.arctan2(abs(lineStart[1]-lineEnd[1]), lineStart[0]-lineEnd[0])-np.pi/2)
+        return -(np.arctan2(abs(lineStart[1]-lineEnd[1]), lineStart[0]-lineEnd[0]))
 
     def lineIntersectWin(self, m,b):
         """function to compute the bottom and top intersect between the line and the window
@@ -709,7 +702,7 @@ class FeatureExtractor:
         contCenterPTS = contCenterPTS[~np.all(contCenterPTS == 0, axis=1)]
         return contCenterPTS
     
-    def getLine_rphi(self, xyCords):
+    def getLineRphi(self, xyCords):
         """sets r , phi line 
 
         Args:
@@ -726,23 +719,160 @@ class FeatureExtractor:
         """function to draw the lines and the windows onto the image (self.processedIMG)
         """
         # main line
-        cv.line(self.processedIMG, (int(self.lineStart[0]),int(self.lineStart[1])), (int(self.lineEnd[0]),int(self.lineEnd[1])), (255, 0, 0), thickness=2)
+        cv.line(self.processedIMG, (int(self.lineStart[0]),int(self.lineStart[1])), (int(self.lineEnd[0]),int(self.lineEnd[1])), (255, 0, 0), thickness=3)
         # contoures
         cv.drawContours(self.processedIMG, self.filtered_contours, -1, (0,255,0), 3)
+
+        print(self.allLineStart[0,0], self.allLineEnd[0,0], self.allLineStart[0,1], self.allLineEnd[0,1])
         for i in range(0,len(self.allLineStart)):
             # helper lines
             cv.line(self.processedIMG, (int(self.allLineStart[i,0]),int(self.allLineStart[i,1])), (int(self.allLineEnd[i,0]),int(self.allLineEnd[i,1])), (0, 255, 0), thickness=1)
             
-            if self.initBool:
+            if self.isInitialized:
                 # windowsddd
                 winBL = np.array([self.windowPoints[i,0], self.windowPoints[i,-2]], np.int32)
                 winTL = np.array([self.windowPoints[i,1], self.windowPoints[i,-1]], np.int32)
                 winTR = np.array([self.windowPoints[i,2], self.windowPoints[i,-1]], np.int32)
                 winBR = np.array([self.windowPoints[i,3], self.windowPoints[i,-2]], np.int32)
                 
-                ptsPoly=np.c_[winBL,winTL,winTR,winBR,winBL].T
-                cv.polylines(self.processedIMG,[ptsPoly],True,(0,0,0))
+                ptsPoly=np.c_[winBL, winBL, winBR, winTR, winTL].T
+                cv.polylines(self.processedIMG, [ptsPoly], True, (0,0,0))
                         
+    def handleKey(self, sleepTime=0):
+        key = cv.waitKey(sleepTime)
+        # Close program with keyboard 'q'
+        if key == ord('q'):
+            cv.destroyAllWindows()
+            exit(1)
 
+    # Function to compute the features of the line which has to be recognized
+    def detectTrackingFeatures(self, mode):
+        print("#[INF] detect Tracking Features")
+        # Initiate SIFT detector
+        sift = cv.xfeatures2d.SIFT_create()
+        # find the keypoints and featureDescriptors in the green index image with SIFT
+        greenIDX = self.getGreenIDX()
+        # get sift key points
+        keyPointsRaw, descriptorsRaw = sift.detectAndCompute(greenIDX,None)
+        self.matchingKeypoints = []
+        self.featureDescriptors = []
+        # get the correct window depending on the current mode
+        if mode == 3:
+            windowLoc = self.windowLocations[0]
+        else:
+            windowLoc = self.windowLocations[-1]
+        # maintain the keypoints lying in the first window
+        for kp, desc in itertools.izip(keyPointsRaw, descriptorsRaw):
+            ptX = kp.pt[0]
+            ptY = kp.pt[1]
+            # if the computed keypoint is in the first window keep it
+            if ptX > (windowLoc - 2 * self.turnWindowWidth) and ptX < (windowLoc + 2 * self.turnWindowWidth):
+               if ptY > self.max_matching_dif_features  and ptY < (self.image_size[0] - self.min_matching_dif_features):
+                    self.matchingKeypoints.append(kp)
+                    self.featureDescriptors.append(desc)
+                    # plot the first key points 
+                    self.processedIMG[int(ptY)-3:int(ptY)+3,int(ptX)-3:int(ptX)+3] = [0, 0, 255]
+
+        print(len(self.matchingKeypoints)," Key Points in the first window were detected")
+
+    
+    def matchTrackingFeatures(self, mode):
+        """Function to compute the features in the second window
+        """
+
+        # Initiate SIFT detector
+        sift = cv.xfeatures2d.SIFT_create()
+        
+        # find the keypoints and featureDescriptors in the green index image with SIFT
+        greenIDX = self.getGreenIDX()
+        keyPointsRaw, descriptorsRaw = sift.detectAndCompute(greenIDX,None)
+        keyPtsCurr = [];
+        descriptorsCurr = [];
+        
+        # get the correct window depending on the current mode 
+        if mode == 3:
+            windowLoc = self.windowLocations[1]
+        else:
+            windowLoc = self.windowLocations[-2]
+            
+        # maintain the keypoints lying in the second window
+        for kp, desc in itertools.izip(keyPointsRaw, descriptorsRaw):
+            ptX = kp.pt[0]
+            ptY = kp.pt[1]
+            # if the computed keypoint is in the second window keep it
+            if ptX > (windowLoc - self.turnWindowWidth) and ptX < (windowLoc + self.turnWindowWidth):
+               if ptY > self.max_matching_dif_features  and ptY < (self.img_width - self.min_matching_dif_features):
+                    keyPtsCurr.append(kp)
+                    descriptorsCurr.append(desc)   
+                    # plot the key Points in the current image
+                    self.processedIMG[int(ptY)-3:int(ptY)+3,int(ptX)-3:int(ptX)+3] = [255, 0, 0]
+    
+        # Check if there's a suitable number of key points 
+        good = []
+        if len(keyPtsCurr) > self.matching_keypoints_th:
+            # compute the matches between the key points
+            FLANN_INDEX_KDTREE = 1
+            index_params = dict(algorithm = FLANN_INDEX_KDTREE, trees = 5)
+            search_params = dict(checks = 50)
+            flann = cv.FlannBasedMatcher(index_params, search_params)
+            matches = flann.knnMatch(np.asarray(self.featureDescriptors,np.float32),np.asarray(descriptorsCurr,np.float32),k=2)
                 
+            # search for good matches (Lowes Ratio Test) 
+            for m,n in matches:
+                if m.distance < 0.8*n.distance:
+                    good.append(m)
+            
+        # if not that indicates that the window is between two lines
+        else:
+            print('Not enough key points for matching for the ',self.nrNoPlantsSeen, ' time')
+            self.nrNoPlantsSeen += 1
+            print('# no plants seen:',self.nrNoPlantsSeen)
+            if self.nrNoPlantsSeen > self.smoothSize:
+                self.noPlantsSeen = True
+   
+        # publish processed image
+        rosIMG = self.bridge.cv2_to_imgmsg(self.processedIMG, encoding='rgb8')
+        self.numVec[self.count] = len(good)
+        self.count += 1
+        if self.count > self.smoothSize:
+            self.meanVec[self.count] = sum(self.numVec[self.count-(self.smoothSize+1):self.count])/self.smoothSize
+
+        # if the smoothed mean is descending the first row has passed the second window
+        if self.meanVec[self.count]<self.meanVec[self.count-1] and self.meanVec[self.count] > self.matching_keypoints_th and self.noPlantsSeen:
+            self.cnt += 1
+            if self.cnt >= self.matching_keypoints_th:
+                self.newDetectedRows += 1
+                # if enough rows are passed
+                if self.newDetectedRows == self.linesToPass:
+                    self.cnt = 0
+                    print("All rows passed")
+                    return True, rosIMG
+                else: 
+                    print(self.newDetectedRows, " row(s) passed")
+                    self.cnt = 0
+                    # compute the new features in the new first window
+                    self.computeTurnFeatures()
+                    return False, rosIMG
+            else:
+                print("No row passed, continuing")
+                return False, rosIMG
+        else:
+            print("No row passed, continuing")
+            return False, rosIMG
+            
+    # Function to compute the green index of the image
+    def getGreenIDX(self):
+        imgInt32 = self.processedIMG.astype('int32')
+        
+        # Vegetation Mask
+        r = imgInt32[:,:,0]
+        g = imgInt32[:,:,1]
+        b = imgInt32[:,:,2]
+    
+        # calculate Excess Green Index and filter out negative values
+        greenIDX = 2*g - r - b
+        greenIDX[greenIDX<0] = 0
+        greenIDX = greenIDX.astype('uint8')
+
+        return greenIDX             
             

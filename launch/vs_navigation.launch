@@ -9,6 +9,6 @@
     <!-- Run visual-servoing navigation  -->
     <group ns="phenobot">
     <rosparam command="load" file="$(find visual_multi_crop_row_navigation)/configs/params.yaml" />
-    <node name="vs_navigation" pkg="visual_multi_crop_row_navigation" type="vs_navigator.py" output="screen" /> 
+    <node name="vs_navigation" pkg="visual_multi_crop_row_navigation" type="vs_navigationNode.py" output="screen" /> 
   </group>
 </launch>
