@@ -20,13 +20,13 @@ queue_size: 5
 
 imgResizeRatio: 100
 
-stationaryDebug: False
+stationaryDebug: True
 # run time params
 # Mode 1: Driving forward with front camera (starting mode)
 # Mode 2: Driving forward with back camera
 # Mode 3: Driving backwards with back camera
 # Mode 4: Driving backwards with front camera
-navigationMode: 1
+navigationMode: 2
 # angular velocity scaler
 maxOmega: 0.05 
 minOmega: 0.01 
@@ -46,18 +46,18 @@ winSweepStart: 0
 winSweepEnd: 1280
 winMinWidth: 128
 # W/8 for small plants, W/5 for big plants
-winSize: 128
+winSize: 200
 # for filtering contours
-min_contour_area: 300
+min_contour_area: 50
 # for dividing bushy rows
 max_coutour_height: 120
 #  in case of using bigger size image size, we suggest to set ROI 
-enable_roi: False
+enable_roi: True
 p1: 
  - 0
  - 0
 p2:
- - 1
+ - 200
  - 0
 p3:
  - 50
@@ -66,14 +66,14 @@ p4:
  - 0
  - 720
 p5: 
- - 1280
+ - 980
  - 0
 p6:
  - 1280
  - 0
 p7:
- - 1200
+ - 1280
  - 720
 p8: 
- - 1280
+ - 1180
  - 720

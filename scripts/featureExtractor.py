@@ -7,6 +7,7 @@ from scipy.signal import find_peaks
 from matplotlib import pyplot as plt
 from movingVariance  import movingStd
 import itertools
+from cv_bridge import CvBridge
 class featureExtractor:
     def __init__(self, windowProp, roiProp, fexProp):
         """# class FeatureExtractor to extract the the line Features: bottom point, angle
@@ -37,9 +38,9 @@ class featureExtractor:
         self.P = np.array([])
         self.allLineStart = []
         self.allLineEnd = []
-        self.allLineAngs = []
-        self.lineStart = np.array([])
-        self.lineEnd = np.array([])
+        self.rowAngles = []
+        self.mainLine_up = np.array([])
+        self.mainLine_down = np.array([])
         
         # window parameters
         self.offsB = 0
@@ -53,6 +54,7 @@ class featureExtractor:
         
         # search parameters
         self.steps = 50
+        self.turnWindowWidth = 50
         self.winSweepStart = []
         self.winSweepEnd = []
 
@@ -60,8 +62,20 @@ class featureExtractor:
 
         self.smoothSize = 5
 
+        # counter of newly detected rows in switching process
+        self.newDetectedRows = 0
+
         self.numVec= np.zeros((300,1))
         self.meanVec = np.zeros((300,1))
+
+        # crop row recognition Difference thersholds
+        self.max_matching_dif_features = 100      
+        self.min_matching_dif_features = 0          
+        # Threshold for keypoints
+        self.matching_keypoints_th = 10
+        # if there is no plant in the image
+        self.noPlantsSeen = False
+        self.nrNoPlantsSeen = 0
            
     def setImgProp(self, img):
         """function to set the image and its properties
@@ -112,27 +126,25 @@ class featureExtractor:
                 if len(self.paramsBest) != 0:
                     # get intersections of the lines with the image borders and 
                     # average these to get the main line
-                    avgLineIntersect = np.mean(np.c_[self.lineIntersectIMG(self.paramsBest[:,1], self.paramsBest[:,0])],axis=0)
+                    avgLine = np.mean(np.c_[self.lineIntersectIMG(self.paramsBest[:,1], self.paramsBest[:,0])],axis=0)
                     self.linesTracked = self.paramsBest
-                    self.topIntersect = avgLineIntersect[0]
-                    self.botIntersect = avgLineIntersect[1]
-                    self.lineStart = [avgLineIntersect[1], self.imgHeight]
-                    self.lineEnd = [avgLineIntersect[0], 0]
+                    self.top_x = avgLine[0]
+                    self.bottom_x = avgLine[1]
+                    #  get AvgLine in image cords
+                    self.mainLine_up, self.mainLine_down = self.getLineInImage(avgLine)
                     # main features
-                    self.P = self.cameraToImage([self.botIntersect, self.imgHeight]) 
-                    self.ang = self.computeTheta(self.lineStart, self.lineEnd)
+                    self.P = self.cameraToImage([self.bottom_x, self.imgHeight]) 
+                    self.ang = self.computeTheta(self.mainLine_up, self.mainLine_down)
                     # set parameters indicating a successfull initialization
                     self.isInitialized = True
                     self.lineFound = True
                     print('--- Initialisation completed ---')
                     print('  # Crop Rows:', len( self.paramsBest))
-                    print('  Window positions:', self.windowLocations)
-                    
+                    print('  Window positions:', self.windowLocations)  
                 else:
                     print('--- Initialisation failed - No lines detected due to peak detection ---')
                     self.lineFound = False
-                    self.processedIMG = self.img
-                    
+                    self.processedIMG = self.img                  
             else:
                 print('--- Initialisation failed - No lines detected by sweeping window ---')
                 self.lineFound = False
@@ -148,18 +160,15 @@ class featureExtractor:
     def findBestLines(self, peaksPos, peaksNeg, movVarM, lParams, winLoc):
         # if multiple lines
         if len(peaksPos) != 0 and len(peaksNeg) != 0 and len(movVarM) != 0:    
-            
             # best line one each side of the crop row transition
             self.paramsBest = np.zeros((len(peaksPos)+1, 2))
             self.windowLocations = np.zeros((len(peaksPos)+1, 1))
-            
             # get lines at each side of a positive peak (= crop row
             # transition and select the best)
             try:
                 lidx = 0
                 # every peak stands for 2 croprows
                 for k in range(0, len(peaksPos) + 1):
-
                     # first peak
                     if k == 0:
                         lines = peaksNeg[peaksNeg<peaksPos[k]]
@@ -171,26 +180,21 @@ class featureExtractor:
                         # last peak
                         else:
                             lines = peaksNeg[peaksNeg>peaksPos[k-1]]
-                                
+                     
                     if len(lines) != 0:
                         # best line (measured by variance)
                         bestLine = np.where(movVarM[lines]==np.min(movVarM[lines]))[0][0]
-        
                         # parameters of that line
                         self.paramsBest[lidx,:] = lParams[lines[bestLine]]
-                        
                         # location of the window which led to this line
                         if winLoc[lines[bestLine]] != [0]:
                             self.windowLocations[lidx,:] = winLoc[lines[bestLine]]
                             lidx += 1
-
             except:
-                    # fallback: just take all negative peaks
-                    self.paramsBest = lParams[peaksNeg]
-                    self.windowLocations = np.mean(winLoc[peaksNeg])
-            
-            
-                    
+                # fallback: just take all negative peaks
+                self.paramsBest = lParams[peaksNeg]
+                self.windowLocations = np.mean(winLoc[peaksNeg])
+                
         # if there are no positive peaks but negative ones: no crop 
         # row transition -> there might be just one line
         elif len(peaksPos) == 0 and len(peaksNeg) != 0 and len(movVarM) != 0:
@@ -201,8 +205,7 @@ class featureExtractor:
             self.windowLocations = np.zeros((1, 1))
             
             self.paramsBest[0,:] = lParams[lines[bestLine]]
-            self.windowLocations[0] = winLoc[lines[bestLine]]
-            
+            self.windowLocations[0] = winLoc[lines[bestLine]]        
         else:
             self.paramsBest = []
             self.windowLocations = []
@@ -213,32 +216,27 @@ class featureExtractor:
         Returns:
             _type_: _description_
         """
-        self.allLineAngs = []
+        self.rowAngles = []
         # if the feature extractor is initalized
-        if len(self.windowLocations) != 0:
-            
+        if len(self.windowLocations) != 0:    
             # get the lines at windows defined through previous found lines
-            lParams, _, winMean = self.getLinesAtWindow(self.windowLocations)
-                
+            lParams, _, winMean = self.getLinesAtWindow(self.windowLocations)      
             # if 'all' lines are found by 'self.getLinesAtWindow'
             if len(lParams) >= len(self.windowLocations):
                 # location is always the left side of the window
                 self.windowLocations = winMean-self.winSize/2
-                
                 # the line parameters are the new tracked lines (for the next step)
                 self.linesTracked = lParams
-
                 # average image intersections of all found lines
-                avgLineIntersect = np.mean(np.c_[self.lineIntersectIMG(lParams[:,1], lParams[:,0])],axis=0)
-            
-                self.topIntersect = avgLineIntersect[0]
-                self.botIntersect = avgLineIntersect[1]
-                self.lineStart = [avgLineIntersect[1], self.imgHeight]
-                self.lineEnd = [avgLineIntersect[0], 0]
-                
+                avgLine = np.mean(np.c_[self.lineIntersectIMG(lParams[:,1], lParams[:,0])],axis=0)
+                # get intersection points
+                self.linesTracked = self.paramsBest
+                self.top_x = avgLine[0]
+                self.bottom_x = avgLine[1]
+                #  get AvgLine in image cords
+                self.mainLine_up, self.mainLine_down = self.getLineInImage(avgLine)
                 # compute all intersections between the image and each line
                 allLineIntersect = np.c_[self.lineIntersectWin(lParams[:,1], lParams[:,0])]
-
                 # store start and end points of lines - mainly for plotting
                 self.allLineStart = np.c_[allLineIntersect[:,0], self.imgHeight - self.offsB * np.ones((len(lParams),1))]
                 self.allLineEnd = np.c_[allLineIntersect[:,1], self.offsT * np.ones((len(lParams),1))]
@@ -246,13 +244,13 @@ class featureExtractor:
                 for line in range(len(self.allLineEnd)):
                     ang = self.computeTheta(self.allLineStart[line], self.allLineEnd[line])
                     # print(ang, self.allLineStart[line], self.allLineEnd[line])
-                    self.allLineAngs.append(ang)
+                    self.rowAngles.append(ang)
                 
                 # main features
-                self.P = self.cameraToImage([self.botIntersect, self.imgHeight]) 
-                self.ang = self.computeTheta(self.lineStart, self.lineEnd)
+                self.P = self.cameraToImage([self.bottom_x, self.imgHeight]) 
+                self.ang = self.computeTheta(self.mainLine_up, self.mainLine_down)
                 
-                # print('Tracking lines at window positions', self.windowLocations.tolist())
+                print('Tracking lines at window positions', self.windowLocations.tolist(), avgLine, self.P, self.ang)
                 
             # if there are less lines than window positions
             else:
@@ -261,8 +259,12 @@ class featureExtractor:
         else:
             print('Running .initialize() first!')
             self.initialize()
-
-        return self.mask
+        return self.lineFound, self.mask
+    
+    def getLineInImage(self,line):
+        up = [line[1], 0]
+        down = [line[0], self.imgHeight]
+        return up, down
 
     def isOnRightSide(self, x, y, xy0, xy1):
         x0, y0 = xy0
@@ -317,9 +319,9 @@ class featureExtractor:
                 win_intersect = self.lineIntersectWin(self.linesTracked[i,1], self.linesTracked[i,0])
                 
                 # window corner points are left and right of these
-                xWinBL = max(win_intersect[1] - self.winSize/2, 0)
+                xWinBL = max(win_intersect[0] - self.winSize/2, 0)
                 xWinBR = min(xWinBL + self.winSize, self.imgWidth)   
-                xWinTL = max(win_intersect[0] - self.winSize/2 * self.winRatio, 0)
+                xWinTL = max(win_intersect[1] - self.winSize/2 * self.winRatio, 0)
                 xWinTR = min(xWinTL + self.winSize * self.winRatio, self.imgWidth)
                            
                 # y untouched (like normal rectangular)
@@ -420,6 +422,17 @@ class featureExtractor:
 
         return lParams, winLoc, winMean
     
+    def applyROI(self, img):
+        _img = img.copy() 
+        # defining ROI windown on the image
+        if self.roiProp["enable_roi"]:
+            r_pts = [self.roiProp["p1"], self.roiProp["p2"], self.roiProp["p3"], self.roiProp["p4"]]
+            l_pts = [self.roiProp["p5"], self.roiProp["p6"], self.roiProp["p7"], self.roiProp["p8"]]
+
+            cv.fillPoly(_img, np.array([r_pts]), (0, 0, 0))
+            cv.fillPoly(_img, np.array([l_pts]), (0, 0, 0))
+        return _img
+    
     def getImageData(self):
         """function to extract the greenidx and the contour center points
 
@@ -427,50 +440,37 @@ class featureExtractor:
             _type_: _description_
         """
         # change datatype to enable negative values for self.greenIDX calculation
-        imgInt32 = self.img.astype('int32')
-        # defining ROI windown on the image
-        if self.roiProp["enable_roi"]:
-            r_pts = [self.roiProp["p1"], self.roiProp["p2"], self.roiProp["p3"], self.roiProp["p4"]]
-            l_pts = [self.roiProp["p5"], self.roiProp["p6"], self.roiProp["p7"], self.roiProp["p8"]]
+        rgbImg = self.img.astype('int32')
+        self.imgHeight, self.imgWidth, self.imgCh = self.img.shape
 
-            cv.fillPoly(imgInt32, np.array([r_pts]), (0, 0, 0))
-            cv.fillPoly(imgInt32, np.array([l_pts]), (0, 0, 0))
+        rgbImg = self.applyROI(rgbImg)
 
-        # cv.imshow("RGB image",self.img)
+        # cv.imshow("RGB image",imgInt32.astype('uint8'))
         # self.handleKey()
-
-        # Vegetation Mask
-        r = imgInt32[:,:,0]
-        g = imgInt32[:,:,1]
-        b = imgInt32[:,:,2]
-
-        # calculate Excess Green Index and filter out negative values
-        self.greenIDX = 2*g - r - b
-        self.greenIDX[self.greenIDX<0] = 0
-        self.greenIDX = self.greenIDX.astype('uint8')
-
-        # Otsu's thresholding after gaussian smoothing
-        blur = cv.GaussianBlur(self.greenIDX,(5,5),0)
-        self.threshold,threshIMG = cv.threshold(blur,0,255,cv.THRESH_BINARY+cv.THRESH_OTSU)
-        
-        # dilation
-        kernel = np.ones((1,1), np.uint8)
-        threshIMG = cv.dilate(threshIMG, kernel, iterations=1)
-        
-        # Erotion
-        # er_kernel = np.ones((10,10),dtype=np.uint8) # this must be tuned 
-        # threshIMG= cv.erode(threshIMG, er_kernel)
-
+        #  get green index and binary mask (Otsu is used for extracting the green)
+        self.mask, self.greenIDX = self.getExgMask(rgbImg)
         # find contours
-        contours = cv.findContours(threshIMG, cv.RETR_TREE, cv.CHAIN_APPROX_NONE)[1]
-        self.mask = threshIMG
+        self.plantObjects = self.getClosedRegions(self.mask)
+
+        # get center of contours
+        contCenterPTS = self.getCCenter(self.plantObjects)
+ 
+        x = contCenterPTS[:,1]
+        y = contCenterPTS[:,0]
+        contCenterPTS = np.array([x,y])
+
+        return contCenterPTS, x, y
+
+    def getClosedRegions(self, binrayMask):
+        # find contours
+        contours = cv.findContours(binrayMask, cv.RETR_TREE, cv.CHAIN_APPROX_NONE)[1]
+
         # cv.imshow("crop rows mask",self.mask)
         # self.handleKey()
 
-        
         # filter contours based on size
         # self.filtered_contours = contours
-        self.filtered_contours = list()
+        filtered_contours = list()
         for i in range(len(contours)):
             if cv.contourArea(contours[i]) > self.min_contour_area:
                 
@@ -481,22 +481,14 @@ class featureExtractor:
                     sub_contours = self.splitContours(contours[i], cn_x, cn_y, cnt_w, cn_h)
                     for j in sub_contours:
                         if j != []:
-                            self.filtered_contours.append(j)
+                            filtered_contours.append(j)
                 else:
                     if contours[i] != []:
-                        self.filtered_contours.append(contours[i]) 
+                        filtered_contours.append(contours[i]) 
             # else:
-            #     self.filtered_contours.append(contours[i]) 
-
-        # get center of contours
-        contCenterPTS = self.getCCenter(self.filtered_contours)
- 
-        x = contCenterPTS[:,1]
-        y = contCenterPTS[:,0]
-        contCenterPTS = np.array([x,y])
-
-        return contCenterPTS, x, y
-
+            #     filtered_contours.append(contours[i]) 
+        return filtered_contours
+    
     def splitContours(self, contour, x, y, w, h):
         """splits larg contours in smaller regions 
 
@@ -720,17 +712,15 @@ class featureExtractor:
         """function to draw the lines and the windows onto the image (self.processedIMG)
         """
         # main line
-        cv.line(self.processedIMG, (int(self.lineStart[0]),int(self.lineStart[1])), (int(self.lineEnd[0]),int(self.lineEnd[1])), (255, 0, 0), thickness=3)
+        cv.line(self.processedIMG, (int(self.mainLine_up[0]),int(self.mainLine_up[1])), (int(self.mainLine_down[0]),int(self.mainLine_down[1])), (255, 0, 0), thickness=3)
         # contoures
-        cv.drawContours(self.processedIMG, self.filtered_contours, -1, (0,255,0), 3)
-
-        print(self.allLineStart[0,0], self.allLineEnd[0,0], self.allLineStart[0,1], self.allLineEnd[0,1])
+        cv.drawContours(self.processedIMG, self.plantObjects, -1, (10,50,150), 3)
         for i in range(0,len(self.allLineStart)):
             # helper lines
             cv.line(self.processedIMG, (int(self.allLineStart[i,0]),int(self.allLineStart[i,1])), (int(self.allLineEnd[i,0]),int(self.allLineEnd[i,1])), (0, 255, 0), thickness=1)
             
             if self.isInitialized:
-                # windowsddd
+                # 
                 winBL = np.array([self.windowPoints[i,0], self.windowPoints[i,-2]], np.int32)
                 winTL = np.array([self.windowPoints[i,1], self.windowPoints[i,-1]], np.int32)
                 winTR = np.array([self.windowPoints[i,2], self.windowPoints[i,-1]], np.int32)
@@ -761,6 +751,7 @@ class featureExtractor:
             windowLoc = self.windowLocations[0]
         else:
             windowLoc = self.windowLocations[-1]
+        print("sample", self.windowLocations)
         # maintain the keypoints lying in the first window
         for kp, desc in itertools.izip(keyPointsRaw, descriptorsRaw):
             ptX = kp.pt[0]
@@ -774,34 +765,31 @@ class featureExtractor:
                     self.processedIMG[int(ptY)-3:int(ptY)+3,int(ptX)-3:int(ptX)+3] = [0, 0, 255]
 
         print(len(self.matchingKeypoints)," Key Points in the first window were detected")
-
-    
+ 
     def matchTrackingFeatures(self, mode):
         """Function to compute the features in the second window
         """
-
         # Initiate SIFT detector
         sift = cv.xfeatures2d.SIFT_create()
-        
         # find the keypoints and featureDescriptors in the green index image with SIFT
         greenIDX = self.getGreenIDX()
+        # get sift key points
         keyPointsRaw, descriptorsRaw = sift.detectAndCompute(greenIDX,None)
-        keyPtsCurr = [];
-        descriptorsCurr = [];
-        
+        keyPtsCurr = []
+        descriptorsCurr = []
+        print("compare", self.windowLocations)
         # get the correct window depending on the current mode 
         if mode == 3:
             windowLoc = self.windowLocations[1]
         else:
-            windowLoc = self.windowLocations[-2]
-            
+            windowLoc = self.windowLocations[-2] 
         # maintain the keypoints lying in the second window
         for kp, desc in itertools.izip(keyPointsRaw, descriptorsRaw):
             ptX = kp.pt[0]
             ptY = kp.pt[1]
             # if the computed keypoint is in the second window keep it
             if ptX > (windowLoc - self.turnWindowWidth) and ptX < (windowLoc + self.turnWindowWidth):
-               if ptY > self.max_matching_dif_features  and ptY < (self.img_width - self.min_matching_dif_features):
+               if ptY > self.max_matching_dif_features  and ptY < (self.imgWidth - self.min_matching_dif_features):
                     keyPtsCurr.append(kp)
                     descriptorsCurr.append(desc)   
                     # plot the key Points in the current image
@@ -829,7 +817,8 @@ class featureExtractor:
             print('# no plants seen:',self.nrNoPlantsSeen)
             if self.nrNoPlantsSeen > self.smoothSize:
                 self.noPlantsSeen = True
-   
+        # cv bridge
+        self.bridge = CvBridge()
         # publish processed image
         rosIMG = self.bridge.cv2_to_imgmsg(self.processedIMG, encoding='rgb8')
         self.numVec[self.count] = len(good)
@@ -860,18 +849,31 @@ class featureExtractor:
             print("No row passed, continuing")
             return False, rosIMG       
     # Function to compute the green index of the image
-    def getGreenIDX(self):
-        imgInt32 = self.processedIMG.astype('int32')
-        
+    def getExgMask(self, img):
+        _img = img.copy()
+
+        _img = _img.astype('int32')
         # Vegetation Mask
-        r = imgInt32[:,:,0]
-        g = imgInt32[:,:,1]
-        b = imgInt32[:,:,2]
-    
+        r = _img[:,:,0]
+        g = _img[:,:,1]
+        b = _img[:,:,2]
+
         # calculate Excess Green Index and filter out negative values
         greenIDX = 2*g - r - b
         greenIDX[greenIDX<0] = 0
         greenIDX = greenIDX.astype('uint8')
 
-        return greenIDX             
+        # Otsu's thresholding after gaussian smoothing
+        blur = cv.GaussianBlur(greenIDX,(5,5),0)
+        threshold, threshIMG = cv.threshold(blur,0,255,cv.THRESH_BINARY+cv.THRESH_OTSU)
+        
+        # dilation
+        kernel = np.ones((10,10), np.uint8)
+        binaryMask = cv.dilate(threshIMG, kernel, iterations=1)
+        
+        # Erotion
+        # er_kernel = np.ones((10,10),dtype=np.uint8) # this must be tuned 
+        # binaryMask= cv.erode(binaryMask, er_kernel)
+
+        return binaryMask ,greenIDX            
             
