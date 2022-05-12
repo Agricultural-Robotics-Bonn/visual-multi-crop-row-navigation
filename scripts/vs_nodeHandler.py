@@ -128,10 +128,7 @@ class vs_nodeHandler:
     # main function to guide the robot through crop rows
     def navigate(self):
         # get the currently used image
-        primaryImg = self.getProcessingImage(self.frontImg, self.backImg)
-        
-        # set update props
-        self.imageProcessor.setImgProp(primaryImg)    
+        primaryImg = self.getProcessingImage(self.frontImg, self.backImg)    
         # If the feature extractor is not initialized yet, this has to be done
         if self.imageProcessor.isInitialized == False:
             print("Initialize image processor unit...")
@@ -223,14 +220,15 @@ class vs_nodeHandler:
         exg_msg.header.stamp = rospy.Time.now()
         self.exg_pub.publish(exg_msg)
     
-    # Function to deal with the front image, called by the subscriber
+    # Function to deal with the front image
     def front_camera_callback(self, data):
-        
         # get and set new image from the ROS topic
         self.frontImg = self.bridge.imgmsg_to_cv2(data, desired_encoding='rgb8')
         # get image size
         self.imgHeight, self.imgWidth, self.imgCh = self.frontImg.shape
-        # if the image is not empty, called by the subscriber
+        # set update props
+        self.imageProcessor.setImgProp(primaryImg)
+        # if the image is not empty
         if self.frontImg is not None and self.backImg is not None:
             # compute and publish robot controls if the image is currently used
             if self.primaryCamera:
