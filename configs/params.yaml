@@ -18,7 +18,7 @@ cmd_vel_topic: /phenobot/twist_mux/cmd_vel
 update rate: 30
 queue_size: 5
 
-img_resize_scale: 100
+imgResizeRatio: 100
 
 stationaryDebug: False
 # run time params

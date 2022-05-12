@@ -40,9 +40,8 @@ class vs_nodeHandler:
 
         # cv bridge
         self.bridge = CvBridge()
-
-        self.img_resize_scale = rospy.get_param('img_resize_scale')
-
+        # input image resize ratio
+        self.imgResizeRatio = rospy.get_param('imgResizeRatio')
         # settings
         # Mode 1: Driving forward with front camera (starting mode)
         # Mode 2: Driving forward with back camera
@@ -51,7 +50,7 @@ class vs_nodeHandler:
         self.navigationMode = rospy.get_param('navigationMode')                   
         # debug mode without publishing velocities 
         self.stationaryDebug = rospy.get_param('stationaryDebug')
-        #  speed limits
+        # speed limits
         self.omegaScaler = rospy.get_param('omegaScaler')
         self.maxOmega = rospy.get_param('maxOmega')
         self.minOmega = rospy.get_param('minOmega')
@@ -73,11 +72,15 @@ class vs_nodeHandler:
         #  buffer of descriptor of detected keypoints
         self.featureDescriptors = []
         self.turnWindowWidth = 50
-        self.linesToPass = rospy.get_param('lines_to_pass')            
+        #  number of lines to pass while lane switching 
+        # (this gets automoatically initialized basedon detected line too)
+        self.linesToPass = rospy.get_param('lines_to_pass')  
+        
+                  
+        # crop row recognition Difference thersholds
         self.max_matching_dif_features = rospy.get_param('max_matching_dif_features')         
         self.min_matching_dif_features = rospy.get_param('min_matching_dif_features')           
-        self.smoothSize = 5             # Parameter for controlling the smoothing effect
-         # Threshold for keypoints
+        # Threshold for keypoints
         self.matching_keypoints_th = rospy.get_param('matching_keypoints_th')
         # if there is no plant in the image
         self.noPlantsSeen = False
@@ -237,21 +240,18 @@ class vs_nodeHandler:
               self.velocityMsg.linear.x, 
               self.velocityMsg.linear.y, 
               round(self.velocityMsg.angular.z, 3))
-
-        # publish the modified image
+        # Publish the Graphics image
         self.imageProcessor.drawGraphics()
         graphic_img = self.bridge.cv2_to_imgmsg(self.imageProcessor.processedIMG, encoding='rgb8')
         self.graphic_pub.publish(graphic_img)
-
+        # publish predicted Mask
         mask_msg = CvBridge().cv2_to_imgmsg(self.mask)
         mask_msg.header.stamp = rospy.Time.now()
         self.mask_pub.publish(mask_msg)
-
+        # publish Exg image 
         exg_msg = CvBridge().cv2_to_imgmsg(self.imageProcessor.greenIDX)
         exg_msg.header.stamp = rospy.Time.now()
         self.exg_pub.publish(exg_msg)
-
-        
 
     # updates navigation stagte (one higher or reset to 1 from > 4)
     def updateNavigationStage(self):
@@ -318,7 +318,7 @@ class vs_nodeHandler:
             y = self.imageProcessor.P[1]
             t = self.imageProcessor.ang
             # define desired and actual feature vector
-            desiredFeature = np.array([0, self.imgSize[0]/2, 0])
+            desiredFeature = np.array([0.0, self.imgSize[0]/2, 0.0])
             actualFeature = np.array([x, y, t])
             # compute controls
             controls = vs_controller.Controller(self.camera, 

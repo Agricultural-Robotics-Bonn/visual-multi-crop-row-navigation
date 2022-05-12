@@ -7,7 +7,6 @@ from scipy.signal import find_peaks
 from matplotlib import pyplot as plt
 from movingVariance  import movingStd
 import itertools
-
 class featureExtractor:
     def __init__(self, windowProp, roiProp, fexProp):
         """# class FeatureExtractor to extract the the line Features: bottom point, angle
@@ -58,6 +57,8 @@ class featureExtractor:
         self.winSweepEnd = []
 
         self.count = 0
+
+        self.smoothSize = 5
 
         self.numVec= np.zeros((300,1))
         self.meanVec = np.zeros((300,1))
@@ -744,7 +745,6 @@ class featureExtractor:
         if key == ord('q'):
             cv.destroyAllWindows()
             exit(1)
-
     # Function to compute the features of the line which has to be recognized
     def detectTrackingFeatures(self, mode):
         print("#[INF] detect Tracking Features")
@@ -858,8 +858,7 @@ class featureExtractor:
                 return False, rosIMG
         else:
             print("No row passed, continuing")
-            return False, rosIMG
-            
+            return False, rosIMG       
     # Function to compute the green index of the image
     def getGreenIDX(self):
         imgInt32 = self.processedIMG.astype('int32')
