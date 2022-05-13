@@ -2,6 +2,8 @@
 
 import numpy as np
 import matplotlib.pyplot as plt 
+from scipy.signal import find_peaks
+
 # funciton to compute the moving standard deviation for a given window size
 def movingStd(data, winSize=5):
     # compute a moving standard deviation
@@ -20,3 +22,10 @@ def movingStd(data, winSize=5):
     # plt.plot(stdVec)
     # plt.show()
     return stdVec
+
+def findPicks(self, movVarM, prominence=0.5):
+        # find negative peaks (=least std, most stable line)                           
+        peaksNeg, _ = find_peaks(-movVarM)
+        # find positive peaks (=least stable lines = crop row transition)
+        peaksPos, _ = find_peaks(movVarM, prominence=0.5)
+        return peaksNeg, peaksPos
