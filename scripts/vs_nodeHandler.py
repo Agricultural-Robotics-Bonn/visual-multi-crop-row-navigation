@@ -8,8 +8,8 @@ import rospy
 import math
 import cv2 as cv
 import Camera as cam
-import featureExtractor as fex
-import Controller as vs_controller
+import imageProc as imc
+import controller as visualServoingCtl
 import numpy as np
 import time
 
@@ -18,7 +18,7 @@ from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 import itertools
 
-
+from featureMatching import *
 
 class vs_nodeHandler:
     
@@ -120,7 +120,7 @@ class vs_nodeHandler:
 
         # camera
         self.camera = cam.Camera(1,1.2,0,1,np.deg2rad(-80),0.96,0,0,1)
-        self.imageProcessor = fex.featureExtractor(self.windowProp, self.rioProp, self.fexProp)
+        self.imageProcessor = imc.imageProc(self.windowProp, self.rioProp, self.fexProp)
 
         rospy.loginfo("#[VS] navigator initialied ... ")
         
@@ -128,14 +128,9 @@ class vs_nodeHandler:
     # main function to guide the robot through crop rows
     def navigate(self):
         # get the currently used image
-<<<<<<< HEAD
         primaryImg = self.getProcessingImage(self.frontImg, self.backImg)
-        
         # set update props
         self.imageProcessor.setImgProp(primaryImg)    
-=======
-        primaryImg = self.getProcessingImage(self.frontImg, self.backImg)    
->>>>>>> 1ab0313cab39b9f38d9d7b83b6c2795d450cf7c2
         # If the feature extractor is not initialized yet, this has to be done
         if self.imageProcessor.isInitialized == False:
             print("Initialize image processor unit...")
@@ -159,7 +154,7 @@ class vs_nodeHandler:
                     self.updateNavigationStage()
                     # if the mode is 2 or 4 one just switches the camera
                     if self.isExitingLane():
-                        self.imageProcessor = fex.featureExtractor(self.windowProp, self.rioProp, self.fexProp)
+                        self.imageProcessor = imc.imageProc(self.windowProp, self.rioProp, self.fexProp)
                         self.getProcessingImage(self.frontImg, self.backImg, switchCamera=True)
                         self.navigate()
                     # if the mode is 1 or 3 the robot follows rows 
@@ -172,7 +167,8 @@ class vs_nodeHandler:
                         self.velocityMsg.angular.z = 0.0
                         time.sleep(1.0)
                         # Compute the features for the turning and stop the movement
-                        self.imageProcessor.detectTrackingFeatures(self.navigationMode)
+                        detectTrackingFeatures(self.navigationMode, 
+                                               self.imageProcessor.windowLocations)
                         time.sleep(1.0)
                 else:
                     self.velocityMsg.linear.x = ctlCommands[0]
@@ -181,10 +177,10 @@ class vs_nodeHandler:
             # if the turning mode is enabled
             else: 
                 # test if the condition for the row switching is fulfilled
-                newLaneFound, graphic_img = self.imageProcessor.matchTrackingFeatures(self.navigationMode)
+                newLaneFound, graphic_img = matchTrackingFeatures(self.navigationMode)
                 if newLaneFound:
                     # the turn is completed and the new lines to follow are computed
-                    self.navigationMode = fex.FeatureExtractor(self.windowProp, self.rioProp, self.fexProp)
+                    self.imageProcessor = imc.imageProc(self.windowProp, self.rioProp, self.fexProp)
                     self.switchDirection()
                     self.switchingMode = False
                     self.velocityMsg = Twist()
@@ -227,25 +223,13 @@ class vs_nodeHandler:
         exg_msg.header.stamp = rospy.Time.now()
         self.exg_pub.publish(exg_msg)
     
-<<<<<<< HEAD
     # Function to deal with the front image, called by the subscriber
     def front_camera_callback(self, data):
-        
-=======
-    # Function to deal with the front image
-    def front_camera_callback(self, data):
->>>>>>> 1ab0313cab39b9f38d9d7b83b6c2795d450cf7c2
         # get and set new image from the ROS topic
         self.frontImg = self.bridge.imgmsg_to_cv2(data, desired_encoding='rgb8')
         # get image size
         self.imgHeight, self.imgWidth, self.imgCh = self.frontImg.shape
-<<<<<<< HEAD
-        # if the image is not empty, called by the subscriber
-=======
-        # set update props
-        self.imageProcessor.setImgProp(primaryImg)
         # if the image is not empty
->>>>>>> 1ab0313cab39b9f38d9d7b83b6c2795d450cf7c2
         if self.frontImg is not None and self.backImg is not None:
             # compute and publish robot controls if the image is currently used
             if self.primaryCamera:
@@ -336,7 +320,7 @@ class vs_nodeHandler:
             desiredFeature = np.array([0.0, self.imgWidth/2, 0.0])
             actualFeature = np.array([x, y, t])
             # compute controls
-            controls = vs_controller.Controller(self.camera, 
+            controls = visualServoingCtl.visualServoingCtl(self.camera, 
                                                 desiredFeature, 
                                                 actualFeature, 
                                                 self.maxLinearVel)

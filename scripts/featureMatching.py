@@ -1,83 +1,105 @@
-# Function to compute the features of the line which has to be recognized
-def detectTrackingFeatures(self, mode):
+
+import cv2 as cv
+import numpy as np
+import itertools
+from cv_bridge import CvBridge
+
+
+def detectTrackingFeatures(rgbImg, greenIDX, mode, windowLocations, turnWindowWidth, min_matching_dif_features, max_matching_dif_features):
+    """ Function to compute the features of the line which has to be recognized
+
+    Args:
+        rgbImg (_type_): _description_
+        greenIDX (_type_): _description_
+        mode (_type_): _description_
+        windowLocations (_type_): _description_
+        turnWindowWidth (_type_): _description_
+        min_matching_dif_features (_type_): _description_
+        max_matching_dif_features (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
     print("#[INF] detect Tracking Features")
+    imgWHeight, imgWidth, imgCh = np.size(greenIDX)
     # Initiate SIFT detector
     sift = cv.xfeatures2d.SIFT_create()
-    # find the keypoints and featureDescriptors in the green index image with SIFT
-    greenIDX = self.getGreenIDX()
     # get sift key points
-    keyPointsRaw, descriptorsRaw = sift.detectAndCompute(greenIDX,None)
-    self.matchingKeypoints = []
-    self.featureDescriptors = []
+    keyPointsRaw, descriptorsRaw = sift.detectAndCompute(greenIDX, None)
+    matchingKeypoints = []
+    featureDescriptors = []
     # get the correct window depending on the current mode
     if mode == 3:
-        windowLoc = self.windowLocations[0]
+        windowLoc = windowLocations[0]
     else:
-        windowLoc = self.windowLocations[-1]
-    print("sample", self.windowLocations)
+        windowLoc = windowLocations[-1]
     # maintain the keypoints lying in the first window
     for kp, desc in itertools.izip(keyPointsRaw, descriptorsRaw):
         ptX = kp.pt[0]
         ptY = kp.pt[1]
         # if the computed keypoint is in the first window keep it
-        if ptX > (windowLoc - 2 * self.turnWindowWidth) and ptX < (windowLoc + 2 * self.turnWindowWidth):
-            if ptY > self.max_matching_dif_features  and ptY < (self.image_size[0] - self.min_matching_dif_features):
-                self.matchingKeypoints.append(kp)
-                self.featureDescriptors.append(desc)
-                # plot the first key points 
-                self.processedIMG[int(ptY)-3:int(ptY)+3,int(ptX)-3:int(ptX)+3] = [0, 0, 255]
+        if ptX > (windowLoc - 2 * turnWindowWidth) and ptX < (windowLoc + 2 * turnWindowWidth):
+            if ptY > max_matching_dif_features and ptY < (imgWHeight - min_matching_dif_features):
+                matchingKeypoints.append(kp)
+                featureDescriptors.append(desc)
+                # plot the first key points
+                rgbImg[int(ptY)-3:int(ptY)+3, int(ptX) -
+                       3:int(ptX)+3] = [0, 0, 255]
 
-    print(len(self.matchingKeypoints)," Key Points in the first window were detected")
+    print(len(matchingKeypoints), " Key Points in the first window were detected")
 
-def matchTrackingFeatures(self, mode):
+    return rgbImg, matchingKeypoints, featureDescriptors
+
+
+def matchTrackingFeatures(self, greenIDX, mode):
     """Function to compute the features in the second window
     """
     # Initiate SIFT detector
     sift = cv.xfeatures2d.SIFT_create()
-    # find the keypoints and featureDescriptors in the green index image with SIFT
-    greenIDX = self.getGreenIDX()
     # get sift key points
-    keyPointsRaw, descriptorsRaw = sift.detectAndCompute(greenIDX,None)
+    keyPointsRaw, descriptorsRaw = sift.detectAndCompute(greenIDX, None)
     keyPtsCurr = []
     descriptorsCurr = []
-    print("compare", self.windowLocations)
-    # get the correct window depending on the current mode 
+    # get the correct window depending on the current mode
     if mode == 3:
         windowLoc = self.windowLocations[1]
     else:
-        windowLoc = self.windowLocations[-2] 
+        windowLoc = self.windowLocations[-2]
     # maintain the keypoints lying in the second window
     for kp, desc in itertools.izip(keyPointsRaw, descriptorsRaw):
         ptX = kp.pt[0]
         ptY = kp.pt[1]
         # if the computed keypoint is in the second window keep it
         if ptX > (windowLoc - self.turnWindowWidth) and ptX < (windowLoc + self.turnWindowWidth):
-            if ptY > self.max_matching_dif_features  and ptY < (self.imgWidth - self.min_matching_dif_features):
+            if ptY > self.max_matching_dif_features and ptY < (self.imgWidth - self.min_matching_dif_features):
                 keyPtsCurr.append(kp)
-                descriptorsCurr.append(desc)   
+                descriptorsCurr.append(desc)
                 # plot the key Points in the current image
-                self.processedIMG[int(ptY)-3:int(ptY)+3,int(ptX)-3:int(ptX)+3] = [255, 0, 0]
+                self.processedIMG[int(ptY)-3:int(ptY)+3,
+                                  int(ptX)-3:int(ptX)+3] = [255, 0, 0]
 
-    # Check if there's a suitable number of key points 
+    # Check if there's a suitable number of key points
     good = []
     if len(keyPtsCurr) > self.matching_keypoints_th:
         # compute the matches between the key points
         FLANN_INDEX_KDTREE = 1
-        index_params = dict(algorithm = FLANN_INDEX_KDTREE, trees = 5)
-        search_params = dict(checks = 50)
+        index_params = dict(algorithm=FLANN_INDEX_KDTREE, trees=5)
+        search_params = dict(checks=50)
         flann = cv.FlannBasedMatcher(index_params, search_params)
-        matches = flann.knnMatch(np.asarray(self.featureDescriptors,np.float32),np.asarray(descriptorsCurr,np.float32),k=2)
-            
-        # search for good matches (Lowes Ratio Test) 
-        for m,n in matches:
+        matches = flann.knnMatch(np.asarray(
+            self.featureDescriptors, np.float32), np.asarray(descriptorsCurr, np.float32), k=2)
+
+        # search for good matches (Lowes Ratio Test)
+        for m, n in matches:
             if m.distance < 0.8*n.distance:
                 good.append(m)
-        
+
     # if not that indicates that the window is between two lines
     else:
-        print('Not enough key points for matching for the ',self.nrNoPlantsSeen, ' time')
+        print('Not enough key points for matching for the ',
+              self.nrNoPlantsSeen, ' time')
         self.nrNoPlantsSeen += 1
-        print('# no plants seen:',self.nrNoPlantsSeen)
+        print('# no plants seen:', self.nrNoPlantsSeen)
         if self.nrNoPlantsSeen > self.smoothSize:
             self.noPlantsSeen = True
     # cv bridge
@@ -87,10 +109,11 @@ def matchTrackingFeatures(self, mode):
     self.numVec[self.count] = len(good)
     self.count += 1
     if self.count > self.smoothSize:
-        self.meanVec[self.count] = sum(self.numVec[self.count-(self.smoothSize+1):self.count])/self.smoothSize
+        self.meanVec[self.count] = sum(
+            self.numVec[self.count-(self.smoothSize+1):self.count])/self.smoothSize
 
     # if the smoothed mean is descending the first row has passed the second window
-    if self.meanVec[self.count]<self.meanVec[self.count-1] and self.meanVec[self.count] > self.matching_keypoints_th and self.noPlantsSeen:
+    if self.meanVec[self.count] < self.meanVec[self.count-1] and self.meanVec[self.count] > self.matching_keypoints_th and self.noPlantsSeen:
         self.cnt += 1
         if self.cnt >= self.matching_keypoints_th:
             self.newDetectedRows += 1
@@ -99,7 +122,7 @@ def matchTrackingFeatures(self, mode):
                 self.cnt = 0
                 print("All rows passed")
                 return True, rosIMG
-            else: 
+            else:
                 print(self.newDetectedRows, " row(s) passed")
                 self.cnt = 0
                 # compute the new features in the new first window
@@ -110,4 +133,4 @@ def matchTrackingFeatures(self, mode):
             return False, rosIMG
     else:
         print("No row passed, continuing")
-        return False, rosIMG       
+        return False, rosIMG

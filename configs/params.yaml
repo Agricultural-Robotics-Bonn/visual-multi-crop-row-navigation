@@ -26,7 +26,7 @@ stationaryDebug: True
 # Mode 2: Driving forward with back camera
 # Mode 3: Driving backwards with back camera
 # Mode 4: Driving backwards with front camera
-navigationMode: 2
+navigationMode: 1
 # angular velocity scaler
 maxOmega: 0.05 
 minOmega: 0.01 
@@ -44,11 +44,11 @@ matching_keypoints_th: 10
 # scanner window params
 winSweepStart: 0
 winSweepEnd: 1280
-winMinWidth: 128
+winMinWidth: 0
 # W/8 for small plants, W/5 for big plants
 winSize: 200
 # for filtering contours
-min_contour_area: 50
+min_contour_area: 10
 # for dividing bushy rows
 max_coutour_height: 120
 #  in case of using bigger size image size, we suggest to set ROI 
