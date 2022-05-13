@@ -63,6 +63,9 @@ class imageProc:
 
         self.count = 0
 
+        self.pointsInTop = 0
+        self.pointsInBottom = 0
+
         # counter of newly detected rows in switching process
         self.newDetectedRows = 0
 
@@ -112,19 +115,19 @@ class imageProc:
         else:
             print("#[INF] feEx - Searching for crop rows, please wait...")
             # steps create linspace
-            winidx = np.linspace(self.winSweepStart,
+            cropRowWindows = np.linspace(self.winSweepStart,
                                  self.winSweepEnd, self.steps)
             # search for lines at given window locations using LQ-Adjustment
-            lParams, winLoc, _ = self.getLinesAtWindow(winidx)
+            lParams, winLoc, _ = self.getLinesAtWindow(cropRowWindows)
             # if any feature is observed during the scan
             if len(lParams) != 0:
                 np.set_printoptions(suppress=True)
                 # compute moving standard deviation
-                movVarM = movingStd(lParams[:, 1])
+                movVarM = movingStd(lParams[:, 0])
                 # find positive an negative peaks of the signal
-                peaksNeg, peaksPos = findPicks(movVarM, 0.5)
+                peaksPos, peaksNeg = findPicksTroughths(movVarM, 0.5)
                 # locate best lines
-                paramsBest, _ = self.findBestLines(peaksPos, peaksNeg,
+                paramsBest, _ = self.findCropRows(peaksPos, peaksNeg,
                                    movVarM, lParams, winLoc)
                 # if there is any proper line to follow
                 if len(paramsBest) != 0:
@@ -159,7 +162,7 @@ class imageProc:
                     '--- Initialisation failed - No lines detected by sweeping window ---')
                 self.lineFound = False
 
-    def findBestLines(self, peaksPos, peaksNeg, movVarM, lParams, winLoc):
+    def findCropRows(self, peaksPos, peaksNeg, movVarM, lParams, winLoc):
         # if multiple lines
         if len(peaksPos) != 0 and len(peaksNeg) != 0 and len(movVarM) != 0:
             # best line one each side of the crop row transition
@@ -216,10 +219,10 @@ class imageProc:
         
         return self.paramsBest,  self.windowLocations
 
-    def getLinesAtWindow(self, winidx):
+    def getLinesAtWindow(self, cropRowWindows):
         """function to get lines at given window locations 
         Args:
-            winidx (_type_): _description_
+            cropRowWindows (_type_): _description_
         Returns:
             _type_: lines in image
         """
@@ -227,18 +230,18 @@ class imageProc:
         self.contourCenters, x, y = self.getImageData()
 
         # initialization
-        lParams = np.zeros((len(winidx), 2))
-        winLoc = np.zeros((len(winidx), 1))
-        winMean = np.zeros((len(winidx), 1))
-        self.windowPoints = np.zeros((len(winidx), 6))
+        lParams = np.zeros((len(cropRowWindows), 2))
+        winLoc = np.zeros((len(cropRowWindows), 1))
+        winMean = np.zeros((len(cropRowWindows), 1))
+        self.windowPoints = np.zeros((len(cropRowWindows), 6))
         var = None
 
         # counting the points in the top and bottom half
-        self.pointsB = 0
-        self.pointsT = 0
+        self.pointsInBottom = 0
+        self.pointsInTop = 0
 
         # for all windows
-        for i in range(len(winidx)):
+        for i in range(len(cropRowWindows)):
             # define window
             if self.isInitialized and len(self.linesTracked) != 0:
                 # get x values, where the top and bottom of the window intersect
@@ -262,9 +265,9 @@ class imageProc:
                                            xWinBR, self.imgHeight-yWinB, self.imgHeight-yWinT]
             else:
                 # initial window positions
-                # window is centered around winidx[i]
-                xWinBL = winidx[i]
-                xWinBR = winidx[i] + self.winSize
+                # window is centered around cropRowWindows[i]
+                xWinBL = cropRowWindows[i]
+                xWinBR = cropRowWindows[i] + self.winSize
                 xWinTL = xWinBL
                 xWinTR = xWinBR
                 yWinB = self.offsB
@@ -274,9 +277,16 @@ class imageProc:
                 self.windowPoints[i, :] = [xWinBL, xWinTL, xWinTR,
                                            xWinBR, self.imgHeight-yWinB, self.imgHeight-yWinT]
 
-            ptsIn = np.zeros((len(x), 2))
+            plantsInCropRow = np.zeros((len(x), 2))
             # get points inside window
+            self.pointsInTop = 0
+            self.pointsInBottom = 0
             for m in range(0, len(x)):
+                # checking #points in upper/lower half of the image
+                if y[m] < self.imgHeight/2:
+                    self.pointsInTop += 1
+                else:
+                    self.pointsInBottom += 1
                 # different query needed, if the window is a parallelogram
                 if self.isInitialized and len(self.linesTracked) != 0 and self.linesTracked is not None:
                     # get the x value of the tracked line of the previous step
@@ -297,16 +307,18 @@ class imageProc:
                 else:
                     ptInWin = x[m] > xWinBL and x[m] < xWinBR and y[m] > yWinB and y[m] < yWinT
 
-                # if the point is inside the window, add it to ptsIn
+                # if the point is inside the window, add it to plantsInCropRow
                 if ptInWin:
-                    ptsIn[m, :] = self.contourCenters[:, m]
+                    plantsInCropRow[m, :] = self.contourCenters[:, m]
 
             # remove zero rows
-            ptsIn = ptsIn[~np.all(ptsIn == 0, axis=1)]
+            plantsInCropRow = plantsInCropRow[~np.all(plantsInCropRow == 0, axis=1)]
+            print(len(plantsInCropRow))
+            
             # line fit
-            if len(ptsIn) > 2:
+            if len(plantsInCropRow) > 2:
                 # flipped points
-                ptsFlip = np.flip(ptsIn, axis=1)
+                ptsFlip = np.flip(plantsInCropRow, axis=1)
                 # get line at scanning window
                 xM, xB = getLineRphi(ptsFlip)
                 t_i, b_i = lineIntersectIMG(xM, xB, self.imgHeight)
@@ -318,9 +330,9 @@ class imageProc:
                     # store the window location, which generated these line
                     # parameters
                     if self.isInitialized == False:
-                        winLoc[i] = winidx[i]
+                        winLoc[i] = cropRowWindows[i]
                     # mean x value of all points used for fitting the line
-                    winMean[i] = np.median(ptsIn, axis=0)[0]
+                    winMean[i] = np.median(plantsInCropRow, axis=0)[0]
 
         # if the feature extractor is initalized, adjust the window
         # size with the variance of the line fit

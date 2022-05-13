@@ -56,6 +56,7 @@ class vs_nodeHandler:
         self.minOmega = rospy.get_param('minOmega')
         self.maxLinearVel = rospy.get_param('maxLinearVel')
         self.minLinearVel = rospy.get_param('minLinearVel')
+        self.rotationDir = 1
         # direction of motion 1: forward, -1:backward
         if self.navigationMode == 1 or self.navigationMode == 2:
             self.linearMotionDir = 1

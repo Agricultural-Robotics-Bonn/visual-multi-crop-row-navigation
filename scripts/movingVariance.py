@@ -26,9 +26,9 @@ def movingStd(data, winSize=5):
     return stdVec
 
 
-def findPicks(movVarM, prominence=0.5):
+def findPicksTroughths(movVarM, prominence=0.5):
     # find negative peaks (=least std, most stable line)
     peaksNeg, _ = find_peaks(-movVarM)
     # find positive peaks (=least stable lines = crop row transition)
     peaksPos, _ = find_peaks(movVarM, prominence=0.5)
-    return peaksNeg, peaksPos
+    return peaksPos, peaksNeg
