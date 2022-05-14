@@ -2,11 +2,22 @@
 
 # sub
 # simulation
-front_color_topic: '/nav_front_rs/camera/color/image_raw'
-back_color_topic:  '/nav_back_rs/camera/color/image_raw'
+frontColor_topic: '/nav_front_rs/camera/color/image_raw'
+frontDepth_topic: '/nav_front_rs/camera/depth/image_raw'
+frontCameraInfo_topic: '/nav_front_rs/camera/color/camera_info'
+
+backColor_topic: '/nav_back_rs/camera/color/image_raw'
+backDepth_topic: '/nav_back_rs/camera/depth/image_raw'
+backCameraInfo_topic: '/nav_back_rs/camera/color/camera_info'
+
 # thorvald
-# front_color_topic: '/phenobot/rs_nav_front/color/image_raw'
-# back_color_topic:  '/phenobot/rs_nav_back/color/image_raw'
+# frontColor_topic: '/phenobot/rs_nav_front/color/image_raw'
+# frontDepth_topic: '/phenobot/rs_nav_front/aligned_depth_to_color/image_raw'
+# frontCameraInfo_topic: '/phenobot/rs_nav_front/color/camera_info'
+
+# backColor_topic: '/phenobot/rs_nav_back/color/image_raw'
+# backDepth_topic: '/phenobot/rs_nav_back/aligned_depth_to_color/image_raw'
+# backCameraInfo_topic: '/phenobot/rs_nav_back/color/camera_info'
 
 #pub
 # simulation

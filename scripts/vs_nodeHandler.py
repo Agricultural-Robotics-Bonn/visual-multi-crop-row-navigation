@@ -14,21 +14,58 @@ import numpy as np
 import time
 
 from geometry_msgs.msg import Twist
-from sensor_msgs.msg import Image
-from cv_bridge import CvBridge
 import itertools
+
+import message_filters
+
+import tf2_ros
+import tf_conversions
+import tf2_geometry_msgs
+import image_geometry
+import geometry_msgs.msg
+from std_msgs.msg import Float64
+from cv_bridge import CvBridge, CvBridgeError
+from sensor_msgs.msg import Image, CameraInfo
 
 from featureMatching import *
 
 class vs_nodeHandler:
     
     def __init__(self):
+        # cv bridge
+        self.bridge = CvBridge()
+        self.queue_size = 1
 
         # subscribed Topics (Images of front and back camera)
-        front_topic = rospy.get_param('front_color_topic')
-        back_topic = rospy.get_param('back_color_topic')
-        self.sub_front_img = rospy.Subscriber(front_topic, Image, self.front_camera_callback, queue_size=1) 
-        self.sub_back_img = rospy.Subscriber(back_topic, Image, self.back_camera_callback, queue_size=1) 
+        self.frontColor_topic = rospy.get_param('frontColor_topic')
+        self.frontDepth_topic = rospy.get_param('frontDepth_topic')
+        self.frontCameraInfo_topic = rospy.get_param('frontCameraInfo_topic')
+
+        self.frontColor_sub = message_filters.Subscriber(
+            self.frontColor_topic, Image, queue_size=self.queue_size)
+        self.frontDepth_sub = message_filters.Subscriber(
+            self.frontDepth_topic, Image, queue_size=self.queue_size)
+        self.frontCameraInfo_sub = message_filters.Subscriber(
+            self.frontCameraInfo_topic, CameraInfo, queue_size=self.queue_size)
+
+        self.ts = message_filters.ApproximateTimeSynchronizer(
+            [self.frontColor_sub, self.frontDepth_sub, self.frontCameraInfo_sub], queue_size=self.queue_size, slop=0.5)
+        self.ts.registerCallback(self.frontSyncCallback)
+
+        self.backColor_topic = rospy.get_param('backColor_topic')
+        self.backDepth_topic = rospy.get_param('backDepth_topic')
+        self.backCameraInfo_topic = rospy.get_param('backCameraInfo_topic')
+
+        self.backColor_sub = message_filters.Subscriber(
+            self.backColor_topic, Image, queue_size=self.queue_size)
+        self.backDepth_sub = message_filters.Subscriber(
+            self.backDepth_topic, Image, queue_size=self.queue_size)
+        self.backCameraInfo_sub = message_filters.Subscriber(
+            self.backCameraInfo_topic, CameraInfo, queue_size=self.queue_size)
+
+        self.ts = message_filters.ApproximateTimeSynchronizer(
+            [self.backColor_sub, self.backDepth_sub, self.backCameraInfo_sub], queue_size=self.queue_size, slop=0.5)
+        self.ts.registerCallback(self.backSyncCallback)
 
         # Initialize ros publisher, ros subscriber, topics we publish
         self.graphic_pub = rospy.Publisher('vs_nav/graphic',Image, queue_size=1)
@@ -38,10 +75,6 @@ class vs_nodeHandler:
         cmd_vel_topic = rospy.get_param('cmd_vel_topic')
         self.velocity_pub = rospy.Publisher(cmd_vel_topic, Twist, queue_size=1)
 
-        # cv bridge
-        self.bridge = CvBridge()
-        # input image resize ratio
-        self.imgResizeRatio = rospy.get_param('imgResizeRatio')
         # settings
         # Mode 1: Driving forward with front camera (starting mode)
         # Mode 2: Driving forward with back camera
@@ -50,20 +83,13 @@ class vs_nodeHandler:
         self.navigationMode = rospy.get_param('navigationMode')                   
         # debug mode without publishing velocities 
         self.stationaryDebug = rospy.get_param('stationaryDebug')
-        # speed limits
-        self.omegaScaler = rospy.get_param('omegaScaler')
-        self.maxOmega = rospy.get_param('maxOmega')
-        self.minOmega = rospy.get_param('minOmega')
-        self.maxLinearVel = rospy.get_param('maxLinearVel')
-        self.minLinearVel = rospy.get_param('minLinearVel')
+        # rotation direction FLAG
         self.rotationDir = 1
         # direction of motion 1: forward, -1:backward
         if self.navigationMode == 1 or self.navigationMode == 2:
             self.linearMotionDir = 1
         else:
             self.linearMotionDir = -1
-        #  used to recoder direction of motion
-        self.omegaBuffer = list()
         # true: front camera, False: back camera
         if self.isUsingFrontCamera(): 
             self.primaryCamera = True
@@ -71,30 +97,16 @@ class vs_nodeHandler:
             self.primaryCamera = False
         # switch process control parameters and settings
         self.switchingMode = False
-        # buffer of detected keypoints to match for finding new rows
-        self.matchingKeypoints = []
-        #  buffer of descriptor of detected keypoints
-        self.featureDescriptors = []
-        #  number of lines to pass while lane switching 
-        # (this gets automoatically initialized basedon detected line too)
-        self.linesToPass = rospy.get_param('lines_to_pass')  
-        # crop row recognition Difference thersholds
-        self.max_matching_dif_features = rospy.get_param('max_matching_dif_features')         
-        self.min_matching_dif_features = rospy.get_param('min_matching_dif_features')           
-        # Threshold for keypoints
-        self.matching_keypoints_th = rospy.get_param('matching_keypoints_th')
-        # if there is no plant in the image
-        self.noPlantsSeen = False
-        self.nrNoPlantsSeen = 0
-        # 
-        self.windowProp = {
-            "winSweepStart": rospy.get_param('winSweepStart'),
-            "winSweepEnd": rospy.get_param('winSweepEnd'),
-            "winMinWidth": rospy.get_param('winMinWidth'),
-            "winSize": rospy.get_param('winSize')
+        #  used to recoder direction of motion
+        self.omegaBuffer = list()
+
+        self.scannerParams = {
+            "scanEndPoint": rospy.get_param('scanEndPoint'),
+            "scanStartPoint": rospy.get_param('scanStartPoint'),
+            "scanWindowWidth": rospy.get_param('scanWindowWidth')
         }
         #  in case of using bigger size image size, we suggest to set ROI 
-        self.rioProp = {
+        self.rioParams = {
             "enable_roi": rospy.get_param('enable_roi'),
             "p1": rospy.get_param('p1'),
             "p2": rospy.get_param('p2'),
@@ -106,15 +118,30 @@ class vs_nodeHandler:
             "p8": rospy.get_param('p8')
         }
 
-        self.fexProp = {
-            "min_contour_area": rospy.get_param('min_contour_area'),
-            "max_coutour_height": rospy.get_param('max_coutour_height')
+        self.contourParams = {
+            "imgResizeRatio": rospy.get_param('imgResizeRatio'),
+            "minContourArea": rospy.get_param('minContourArea'),
         }
+
+        self.featureParams = {
+            "linesToPass": rospy.get_param('linesToPass'),
+            "matchingKeypointsNum": rospy.get_param('matchingKeypointsNum'),
+            "maxMatchingDifference": rospy.get_param('maxMatchingDifference'),
+            "minMatchingDifference": rospy.get_param('minMatchingDifference'),
+        }
+
+        # speed limits
+        self.omegaScaler = rospy.get_param('omegaScaler')
+        self.maxOmega = rospy.get_param('maxOmega')
+        self.minOmega = rospy.get_param('minOmega')
+        self.maxLinearVel = rospy.get_param('maxLinearVel')
+        self.minLinearVel = rospy.get_param('minLinearVel')
         
         # images
-        self.primary_img = []
         self.frontImg = None
+        self.frontDepth = None
         self.backImg = None
+        self.backDepth = None
 
         self.velocityMsg = Twist()
         self.enoughPoints = True
@@ -123,31 +150,27 @@ class vs_nodeHandler:
         self.camera = cam.Camera(1,1.2,0,1,np.deg2rad(-80),0.96,0,0,1)
         self.imageProcessor = imc.imageProc(self.windowProp, self.rioProp, self.fexProp)
 
+        self.camera_model = image_geometry.PinholeCameraModel()
+        rospy.loginfo('Detection Camera initialised, {}, , {}'.format(
+            self.color_topic, self.depth_topic, self.camera_info_topic))
+        print('')
+
         rospy.loginfo("#[VS] navigator initialied ... ")
         
-
     # main function to guide the robot through crop rows
     def navigate(self):
         # get the currently used image
-        primaryImg = self.getProcessingImage(self.frontImg, self.backImg)
-        # set update props
-        self.imageProcessor.setImgProp(primaryImg)    
+        primaryRGB, primaryDepth = self.getProcessingImage(self.frontImg, self.backImg)
         # If the feature extractor is not initialized yet, this has to be done
-        if self.imageProcessor.isInitialized == False:
-            print("Initialize image processor unit...")
-            self.imageProcessor.initialize()
-        
-        # this is only False if the initialization in 'setImage' was unsuccessful
-        if self.imageProcessor.isInitialized == False:
+        if not self.imageProcessor.findCropRows(primaryRGB, primaryDepth, mode='RGB-D'):
+            # this is only False if the initialization in 'setImage' was unsuccessful
             rospy.logwarn("The initialization was unsuccessful!! ")
             # switch cameras
-            self.getProcessingImage(self.frontImg, self.backImg, switchCamera=True)
-            
+            primaryRGB, primaryDepth = self.getProcessingImage(self.frontImg, self.backImg, switchCamera=True)
         else:  
             # if the robot is currently following a line and is not turning just compute the controls
             if not self.switchingMode:
                 validPathFound, ctlCommands = self.computeControls()
-                
                 # if the validPathFound is False (no lines are found)
                 if not validPathFound:
                     rospy.logwarn("no lines are found !! validPathFound is False")
@@ -168,8 +191,11 @@ class vs_nodeHandler:
                         self.velocityMsg.angular.z = 0.0
                         time.sleep(1.0)
                         # Compute the features for the turning and stop the movement
-                        detectTrackingFeatures(self.navigationMode, 
-                                               self.imageProcessor.windowLocations)
+                        detectTrackingFeatures(self.imageProcessor.primaryRGBImg,
+                                               self.imc.imageProc.greenIDX,
+                                               self.navigationMode, 
+                                               self.imageProcessor.windowLocations,
+                                               turnWindowWidth = 100)
                         time.sleep(1.0)
                 else:
                     self.velocityMsg.linear.x = ctlCommands[0]
@@ -224,8 +250,72 @@ class vs_nodeHandler:
         exg_msg.header.stamp = rospy.Time.now()
         self.exg_pub.publish(exg_msg)
     
-    # Function to deal with the front image, called by the subscriber
+    def frontSyncCallback(self, rgbImage, depthImage, camera_info_msg):
+        self.camera_model.fromCameraInfo(camera_info_msg)
+        # print("here")
+        try:
+            # Convert your ROS Image message to OpenCV2
+            self.frontImg = self.bridge.imgmsg_to_cv2(rgbImage, "bgr8")
+        except CvBridgeError as e:
+            print(e)
+        try:
+            # Convert your ROS Image message to OpenCV2
+            # The depth image is a single-channel float32 image
+            # the values is the distance in mm in z axis
+            cv_depth = self.bridge.imgmsg_to_cv2(depthImage, "passthrough")
+            # Convert the depth image to a Numpy array since most cv functions
+            # require Numpy arrays.
+            self.frontDepth = np.array(cv_depth, dtype=np.float32)
+            # Normalize the depth image to fall between 0 (black) and 1 (white)
+            cv.normalize(self.frontDepth, self.frontDepth,
+                          0.0, 1.0, cv.NORM_MINMAX)
+        except CvBridgeError as e:
+            print(e)
+
+        # get image size
+        self.imgHeight, self.imgWidth, self.imgCh = self.frontImg.shape
+        # if the image is not empty
+        if self.frontImg is not None and self.backImg is not None:
+            # compute and publish robot controls if the image is currently used
+            if self.primaryCamera:
+                self.navigate()
+    
+    def backSyncCallback(self, rgbImage, depthImage, camera_info_msg):
+        self.camera_model.fromCameraInfo(camera_info_msg)
+        # print("here")
+        try:
+            # Convert your ROS Image message to OpenCV2
+            self.backImg = self.bridge.imgmsg_to_cv2(rgbImage, "bgr8")
+        except CvBridgeError as e:
+            print(e)
+        try:
+            # Convert your ROS Image message to OpenCV2
+            # The depth image is a single-channel float32 image
+            # the values is the distance in mm in z axis
+            cv_depth = self.bridge.imgmsg_to_cv2(depthImage, "passthrough")
+            # Convert the depth image to a Numpy array since most cv functions
+            # require Numpy arrays.
+            self.backDepth = np.array(cv_depth, dtype=np.float32)
+            # Normalize the depth image to fall between 0 (black) and 1 (white)
+            cv.normalize(self.backDepth, self.backDepth,
+                          0.0, 1.0, cv.NORM_MINMAX)
+        except CvBridgeError as e:
+            print(e)
+
+        # get image size
+        self.imgHeight, self.imgWidth, self.imgCh = self.frontImg.shape
+        # if the image is not empty
+        if self.frontImg is not None and self.backImg is not None:
+            # compute and publish robot controls if the image is currently used
+            if self.primaryCamera:
+                self.navigate()
+
     def front_camera_callback(self, data):
+        """Function to deal with the front image, called by the subscriber
+
+        Args:
+            data (_type_): _description_
+        """
         # get and set new image from the ROS topic
         self.frontImg = self.bridge.imgmsg_to_cv2(data, desired_encoding='rgb8')
         # get image size
@@ -236,8 +326,12 @@ class vs_nodeHandler:
             if self.primaryCamera:
                 self.navigate()
                        
-    # Function to deal with the back image
     def back_camera_callback(self, data):
+        """Function to deal with the back image
+
+        Args:
+            data (_type_): _description_
+        """
         # get and set new image from the ROS topic
         self.backImg = self.bridge.imgmsg_to_cv2(data, desired_encoding='rgb8')
         # get image size
@@ -248,23 +342,32 @@ class vs_nodeHandler:
             if not self.primaryCamera:
                 self.navigate()
 
-    # updates navigation stagte (one higher or reset to 1 from > 4)
     def updateNavigationStage(self):
+        """updates navigation stagte (one higher or reset to 1 from > 4)
+        """
         self.navigationMode += 1
         if self.navigationMode > 4:
             self.navigationMode = 1  
         inputKey = input("#[INF] Press Enter to continue with mode:")
         print("#[INF] Switched to mode ", self.navigationMode)
     
-    # condition of line existing action, modes 2, 4
     def isExitingLane(self):
+        """condition of line existing action, modes 2, 4
+
+        Returns:
+            _type_: _description_
+        """
         if self.navigationMode == 2 or self.navigationMode == 4:
             return True
         else:
             return False
     
-    # if following a lane, modes 1, 3
     def isFollowingLane(self):
+        """if following a lane, modes 1, 3
+
+        Returns:
+            _type_: _description_
+        """
         if self.navigationMode == 1 or self.navigationMode == 3:
             return True
         else:
@@ -281,19 +384,30 @@ class vs_nodeHandler:
             return True
         else: 
             return False
-    
-    # Function to manage the control variable for the driving direction
+
     def switchDirection(self):
+        """Function to manage the control variable for the driving direction
+        """
         self.linearMotionDir = -self.linearMotionDir
         print("#####################switched Direction of Motion ...", self.linearMotionDir)
     
-    # Function to manage the control variable for the driving rotation
     def switchRotationDir(self):
+        """Function to manage the control variable for the driving rotation
+        """
         self.rotationDir = -self.rotationDir
         print("&&&&&&&&&&&&&&&&&&&&&switched Direction of Rotation ...", self.rotationDir)
 
-    # Function to set the currently used image
     def getProcessingImage(self, frontImg, backImg, switchCamera=False):
+        """Function to set the currently used image
+
+        Args:
+            frontImg (_type_): _description_
+            backImg (_type_): _description_
+            switchCamera (bool, optional): _description_. Defaults to False.
+
+        Returns:
+            _type_: _description_
+        """
         if switchCamera:
             print("switch camera to the other ...")
             # Function to manage the switching between the two cameras
@@ -306,10 +420,14 @@ class vs_nodeHandler:
             primaryImg = backImg
         return primaryImg     
     
-    # Function to compute the controls when following a crop row
     def computeControls(self):
+        """Function to compute the controls when following a crop row
+
+        Returns:
+            _type_: _description_
+        """
         # extract features via the feature extractor
-        lineFound, self.mask = self.imageProcessor.updateLinesAtWindows()
+        lineFound, self.mask = self.imageProcessor.updateCropRowWindows()
         # if features are found and the end of the row is not reached yet
         if lineFound: 
             # print("line found -- compute controls...")
@@ -321,7 +439,7 @@ class vs_nodeHandler:
             desiredFeature = np.array([0.0, self.imgWidth/2, 0.0])
             actualFeature = np.array([x, y, t])
             # compute controls
-            controls = visualServoingCtl.visualServoingCtl(self.camera, 
+            controls = visualServoingCtl.visualServoingCtl(self.camera,
                                                 desiredFeature, 
                                                 actualFeature, 
                                                 self.maxLinearVel)
@@ -349,3 +467,18 @@ class vs_nodeHandler:
             rho = 0.05 * self.linearMotionDir
             return False, [rho, omega]
 
+    def transformTargets(self, targets, frameName):
+        cameraToOdomTF = None
+        targetList = []
+        try:
+            cameraToOdomTF = self.tfBuffer.lookup_transform(
+                frameName, self.camera_model.tfFrame(), rospy.Time(0))
+        except:
+            rospy.logerr("lookup_transform " + frameName + " to " + self.camera_model.tfFrame() + " failed !!!")
+        
+        if not cameraToOdomTF == None:
+            for i in range(len(targets)):
+                stem = tf2_geometry_msgs.do_transform_pose(targets[i], cameraToOdomTF)
+                targetList.append(stem)
+
+        return targetList

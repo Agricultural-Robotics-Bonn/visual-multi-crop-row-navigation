@@ -75,7 +75,7 @@ def matchTrackingFeatures(self, greenIDX, mode):
                 keyPtsCurr.append(kp)
                 descriptorsCurr.append(desc)
                 # plot the key Points in the current image
-                self.processedIMG[int(ptY)-3:int(ptY)+3,
+                self.primaryImg[int(ptY)-3:int(ptY)+3,
                                   int(ptX)-3:int(ptX)+3] = [255, 0, 0]
 
     # Check if there's a suitable number of key points
@@ -105,7 +105,7 @@ def matchTrackingFeatures(self, greenIDX, mode):
     # cv bridge
     self.bridge = CvBridge()
     # publish processed image
-    rosIMG = self.bridge.cv2_to_imgmsg(self.processedIMG, encoding='rgb8')
+    rosIMG = self.bridge.cv2_to_imgmsg(self.primaryImg, encoding='rgb8')
     self.numVec[self.count] = len(good)
     self.count += 1
     if self.count > self.smoothSize:

@@ -23,8 +23,7 @@ class imageProc:
             fexProp (_type_): _description_
         """
         # parameters
-        self.img = []
-        self.processedIMG = []
+        self.primaryRGBImg = []
         self.linesTracked = []
         self.windowPoints = []
         self.windowLocations = []
@@ -57,7 +56,7 @@ class imageProc:
 
         # search parameters
         self.steps = 50
-        self.turnWindowWidth = 100
+        
         self.winSweepStart = []
         self.winSweepEnd = []
 
@@ -73,52 +72,39 @@ class imageProc:
         self.meanVec = np.zeros((300, 1))
 
         # crop row recognition Difference thersholds
-        self.max_matching_dif_features = 100
-        self.min_matching_dif_features = 0
-        # Threshold for keypoints
-        self.matching_keypoints_th = 10
+
         # if there is no plant in the image
         self.noPlantsSeen = False
         self.nrNoPlantsSeen = 0
 
-    def setImgProp(self, img):
-        """function to set the image and its properties
+        if self.winSize is None:
+            # 8 for small plants, /5 for big plants
+            self.winSize = self.windowProp["winSize"]
+            self.winMinWidth = self.windowProp["winMinWidth"]
+            self.winSweepStart = self.windowProp["winSweepStart"]
+            self.winSweepEnd = self.windowProp["winSweepEnd"]
 
-        Args:
-            img (_type_): _description_
-        """
-        if self.img is not None or len(self.img) != 0:
-            self.img = img
-            self.processedIMG = self.img.copy()
-            self.imgHeight, self.imgWidth, self.imgChannels = self.img.shape
-
-            if self.winSize is None:
-                # 8 for small plants, /5 for big plants
-                self.winSize = self.windowProp["winSize"]
-                self.winMinWidth = self.windowProp["winMinWidth"]
-                self.winSweepStart = self.windowProp["winSweepStart"]
-                self.winSweepEnd = self.windowProp["winSweepEnd"]
-        else:
-            print("Invalid image")
-
-    def initialize(self, bushy=False):
-        """funciton to initialize the feature extractor
+    def findCropRows(self, rgbImg, depthImg, mode='RGB-D', bushy=False):
+        """finds Crops Rows in the image based on RGB and depth data
 
         Args:
             bushy (bool, optional): _description_. Defaults to False.
         """
+        self.primaryRGBImg = rgbImg.copy()
+        self.primaryDepthImg = depthImg.copy()
+        self.imgHeight, self.imgWidth, self.imgChannels = rgbImg.shape
         # if crop canopy type is busshy like Coriander
         self.bushy = bushy
         # check if current image is not Empty or None
-        if self.processedIMG is None or len(self.processedIMG) == 0:
-            print("#[ERR] feEx - Image is None, Check Topics or the Sensor !")
+        if self.primaryRGBImg is None or len(self.primaryRGBImg) == 0:
+            print("#[ERR] CR-Scanner - Image is None, Check Topics or the Sensor !")
         else:
-            print("#[INF] feEx - Searching for crop rows, please wait...")
-            # steps create linspace
-            cropRowWindows = np.linspace(self.winSweepStart,
-                                 self.winSweepEnd, self.steps)
+            print("#[INF] CR-Scanner - Searching for crop rows, please wait...")
+            # greenidx, contour center points
+            self.plantCentersInImage, _, _ = self.getPlantCenters()
             # search for lines at given window locations using LQ-Adjustment
-            lParams, winLoc, _ = self.getLinesAtWindow(cropRowWindows)
+            lParams, winLoc, _ = self.findLinesInImage()
+
             # if any feature is observed during the scan
             if len(lParams) != 0:
                 np.set_printoptions(suppress=True)
@@ -127,8 +113,8 @@ class imageProc:
                 # find positive an negative peaks of the signal
                 peaksPos, peaksNeg = findPicksTroughths(movVarM, 0.5)
                 # locate best lines
-                paramsBest, _ = self.findCropRows(peaksPos, peaksNeg,
-                                   movVarM, lParams, winLoc)
+                paramsBest, _ = self.findlinesInSignal(peaksPos, peaksNeg,
+                                                          movVarM, lParams, winLoc)
                 # if there is any proper line to follow
                 if len(paramsBest) != 0:
                     # get intersections of the lines with the image borders and
@@ -149,10 +135,10 @@ class imageProc:
                     # set parameters indicating a successfull initialization
                     self.isInitialized = True
                     self.lineFound = True
-                    print('#[INF] Controller Initialized - Crop Rows:', 
-                         len(paramsBest), 
-                         ', Window positions:', 
-                         self.windowLocations.tolist())
+                    print('#[INF] Controller Initialized - Crop Rows:',
+                          len(paramsBest),
+                          ', Window positions:',
+                          self.windowLocations.tolist())
                 else:
                     print(
                         '--- Initialisation failed - No lines detected due to peak detection ---')
@@ -162,7 +148,7 @@ class imageProc:
                     '--- Initialisation failed - No lines detected by sweeping window ---')
                 self.lineFound = False
 
-    def findCropRows(self, peaksPos, peaksNeg, movVarM, lParams, winLoc):
+    def findlinesInSignal(self, peaksPos, peaksNeg, movVarM, lParams, winLoc):
         # if multiple lines
         if len(peaksPos) != 0 and len(peaksNeg) != 0 and len(movVarM) != 0:
             # best line one each side of the crop row transition
@@ -216,19 +202,20 @@ class imageProc:
         else:
             self.paramsBest = []
             self.windowLocations = []
-        
+
         return self.paramsBest,  self.windowLocations
 
-    def getLinesAtWindow(self, cropRowWindows):
+    def findLinesInImage(self):
         """function to get lines at given window locations 
         Args:
             cropRowWindows (_type_): _description_
         Returns:
             _type_: lines in image
         """
-        # greenidx, contour center points
-        self.contourCenters, x, y = self.getImageData()
-
+        if not self.initialized :
+            # steps create linspace
+            cropRowWindows = np.linspace(self.winSweepStart,
+                                            self.winSweepEnd, self.steps)
         # initialization
         lParams = np.zeros((len(cropRowWindows), 2))
         winLoc = np.zeros((len(cropRowWindows), 1))
@@ -255,7 +242,7 @@ class imageProc:
                 xWinBL = win_intersect[0] - self.winSize/2
                 xWinBR = xWinBL + self.winSize
                 xWinTL = win_intersect[1] - self.winSize/2 * self.winRatio
-                xWinTR = xWinTL + self.winSize *self.winRatio
+                xWinTR = xWinTL + self.winSize * self.winRatio
                 # y untouched (like normal rectangular)
                 yWinB = self.offsB
                 yWinT = self.imgHeight-self.offsT
@@ -309,12 +296,13 @@ class imageProc:
 
                 # if the point is inside the window, add it to plantsInCropRow
                 if ptInWin:
-                    plantsInCropRow[m, :] = self.contourCenters[:, m]
+                    plantsInCropRow[m, :] = self.plantCentersInImage[:, m]
 
             # remove zero rows
-            plantsInCropRow = plantsInCropRow[~np.all(plantsInCropRow == 0, axis=1)]
+            plantsInCropRow = plantsInCropRow[~np.all(
+                plantsInCropRow == 0, axis=1)]
             print(len(plantsInCropRow))
-            
+
             # line fit
             if len(plantsInCropRow) > 2:
                 # flipped points
@@ -347,7 +335,7 @@ class imageProc:
 
         return lParams, winLoc, winMean
 
-    def updateLinesAtWindows(self):
+    def updateCropRowWindows(self):
         """function to get lines at given window locations 
         Returns:
             _type_: _description_
@@ -356,8 +344,8 @@ class imageProc:
         # if the feature extractor is initalized
         if len(self.windowLocations) != 0:
             # get the lines at windows defined through previous found lines
-            lParams, _, winMean = self.getLinesAtWindow(self.windowLocations)
-            # if 'all' lines are found by 'self.getLinesAtWindow'
+            lParams, _, winMean = self.getLinesInImage(self.windowLocations)
+            # if 'all' lines are found by 'self.getLinesInImage'
             if len(lParams) >= len(self.windowLocations):
                 # location is always the left side of the window
                 self.windowLocations = winMean - self.winSize/2
@@ -370,7 +358,8 @@ class imageProc:
                 self.top_x = avgLine[0]
                 self.bottom_x = avgLine[1]
                 #  get AvgLine in image cords
-                self.mainLine_up, self.mainLine_down = getLineInImage(avgLine, self.imgHeight)
+                self.mainLine_up, self.mainLine_down = getLineInImage(
+                    avgLine, self.imgHeight)
                 # compute all intersections between the image and each line
                 allLineIntersect = np.c_[lineIntersectWin(lParams[:, 1],
                                                           lParams[:, 0],
@@ -404,14 +393,14 @@ class imageProc:
             self.initialize()
         return self.lineFound, self.mask
 
-    def getImageData(self):
+    def getPlantCenters(self):
         """function to extract the greenidx and the contour center points
 
         Returns:
             _type_: _description_
         """
         # change datatype to enable negative values for self.greenIDX calculation
-        rgbImg = self.processedIMG.astype('int32')
+        rgbImg = self.primaryRGBImg.astype('int32')
 
         rgbImg = self.applyROI(rgbImg)
 
@@ -432,8 +421,9 @@ class imageProc:
 
         return contCenterPTS, x, y
 
-    # Function to compute the green index of the image
     def getExgMask(self, img):
+        """Function to compute the green index of the image
+        """
         _img = img.copy()
 
         _img = _img.astype('int32')
@@ -487,17 +477,17 @@ class imageProc:
         return P
 
     def drawGraphics(self):
-        """function to draw the lines and the windows onto the image (self.processedIMG)
+        """function to draw the lines and the windows onto the image (self.primaryRGBImg)
         """
         # main line
-        cv.line(self.processedIMG, (int(self.mainLine_up[0]), int(self.mainLine_up[1])), (int(
+        cv.line(self.primaryRGBImg, (int(self.mainLine_up[0]), int(self.mainLine_up[1])), (int(
             self.mainLine_down[0]), int(self.mainLine_down[1])), (255, 0, 0), thickness=3)
         # contoures
-        cv.drawContours(self.processedIMG,
+        cv.drawContours(self.primaryRGBImg,
                         self.plantObjects, -1, (10, 50, 150), 3)
         for i in range(0, len(self.allLineStart)):
             # helper lines
-            cv.line(self.processedIMG, (int(self.allLineStart[i, 0]), int(self.allLineStart[i, 1])), (int(
+            cv.line(self.primaryRGBImg, (int(self.allLineStart[i, 0]), int(self.allLineStart[i, 1])), (int(
                 self.allLineEnd[i, 0]), int(self.allLineEnd[i, 1])), (0, 255, 0), thickness=1)
 
             if self.isInitialized:
@@ -512,13 +502,14 @@ class imageProc:
                     [self.windowPoints[i, 3], self.windowPoints[i, -2]], np.int32)
 
                 ptsPoly = np.c_[winBL, winBL, winBR, winTR, winTL].T
-                cv.polylines(self.processedIMG, [ptsPoly], True, (0, 255, 255))
-        
-        for i in range(len(self.contourCenters[0])):
+                cv.polylines(self.primaryRGBImg, [ptsPoly], True, (0, 255, 255))
+
+        for i in range(len(self.plantCentersInImage[0])):
             # draw point on countur centers
-            x = int(self.contourCenters[0,i])
-            y = int(self.contourCenters[1,i])
-            self.processedIMG = cv.circle(self.processedIMG, (x, y), 3, (255, 0, 255), 5)
+            x = int(self.plantCentersInImage[0, i])
+            y = int(self.plantCentersInImage[1, i])
+            self.primaryRGBImg = cv.circle(
+                self.primaryRGBImg, (x, y), 3, (255, 0, 255), 5)
 
     def handleKey(self, sleepTime=0):
         key = cv.waitKey(sleepTime)
