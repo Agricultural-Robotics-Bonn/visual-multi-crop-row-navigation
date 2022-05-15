@@ -101,6 +101,7 @@ class vs_nodeHandler:
         self.omegaBuffer = list()
 
         self.scannerParams = {
+            "scanSteps": rospy.get_param('scanSteps'),
             "scanEndPoint": rospy.get_param('scanEndPoint'),
             "scanStartPoint": rospy.get_param('scanStartPoint'),
             "scanWindowWidth": rospy.get_param('scanWindowWidth')
@@ -148,7 +149,10 @@ class vs_nodeHandler:
 
         # camera
         self.camera = cam.Camera(1,1.2,0,1,np.deg2rad(-80),0.96,0,0,1)
-        self.imageProcessor = imc.imageProc(self.windowProp, self.rioProp, self.fexProp)
+        self.imageProcessor = imc.imageProc(self.scannerParams, 
+                                            self.contourParams, 
+                                            self.rioProp, 
+                                            self.featureParams)
 
         self.camera_model = image_geometry.PinholeCameraModel()
         rospy.loginfo('Detection Camera initialised, {}, , {}'.format(
@@ -178,7 +182,7 @@ class vs_nodeHandler:
                     self.updateNavigationStage()
                     # if the mode is 2 or 4 one just switches the camera
                     if self.isExitingLane():
-                        self.imageProcessor = imc.imageProc(self.windowProp, self.rioProp, self.fexProp)
+                        self.imageProcessor.reset()
                         self.getProcessingImage(self.frontImg, self.backImg, switchCamera=True)
                         self.navigate()
                     # if the mode is 1 or 3 the robot follows rows 
@@ -191,9 +195,10 @@ class vs_nodeHandler:
                         self.velocityMsg.angular.z = 0.0
                         time.sleep(1.0)
                         # Compute the features for the turning and stop the movement
-                        detectTrackingFeatures(self.imageProcessor.primaryRGBImg,
-                                               self.imc.imageProc.greenIDX,
-                                               self.navigationMode, 
+                        detectTrackingFeatures(self.navigationMode,
+                                               self.imageProcessor.primaryRGBImg,
+                                               self.imageProcessor.greenIDX,
+                                               self.imageProcessor.mask, 
                                                self.imageProcessor.windowLocations,
                                                turnWindowWidth = 100)
                         time.sleep(1.0)
@@ -207,7 +212,7 @@ class vs_nodeHandler:
                 newLaneFound, graphic_img = matchTrackingFeatures(self.navigationMode)
                 if newLaneFound:
                     # the turn is completed and the new lines to follow are computed
-                    self.imageProcessor = imc.imageProc(self.windowProp, self.rioProp, self.fexProp)
+                    self.imageProcessor.reset()
                     self.switchDirection()
                     self.switchingMode = False
                     self.velocityMsg = Twist()
@@ -221,6 +226,7 @@ class vs_nodeHandler:
                     self.velocityMsg.linear.x = 0.0
                     self.velocityMsg.linear.y = -0.08
                     self.velocityMsg.angular.z = 0.0
+                    # check Odometry for safty (not to drive so much!)
                     print("#[INF] Side motion to find New Lane ...")
         
         if not self.stationaryDebug:
@@ -237,6 +243,7 @@ class vs_nodeHandler:
               round(self.velocityMsg.angular.z, 3),
               self.linearMotionDir,
               self.rotationDir)
+
         # Publish the Graphics image
         self.imageProcessor.drawGraphics()
         graphic_img = self.bridge.cv2_to_imgmsg(self.imageProcessor.processedIMG, encoding='rgb8')

@@ -30,7 +30,7 @@ def getCCenter(contours):
         contCenterPTS = contCenterPTS[~np.all(contCenterPTS == 0, axis=1)]
         return contCenterPTS
 
-def getClosedRegions(binrayMask, min_contour_area, bushy=False):
+def getPlantMasks(binrayMask, min_contour_area, bushy=False):
         # find contours
         contours = cv.findContours(binrayMask, cv.RETR_TREE, cv.CHAIN_APPROX_NONE)[1]
 

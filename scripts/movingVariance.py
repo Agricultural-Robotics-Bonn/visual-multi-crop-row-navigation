@@ -6,7 +6,6 @@ from scipy.signal import find_peaks
 
 # funciton to compute the moving standard deviation for a given window size
 
-
 def movingStd(data, winSize=5):
     # compute a moving standard deviation
     stdVec = np.zeros((len(data)-winSize, 1))
@@ -24,7 +23,6 @@ def movingStd(data, winSize=5):
     # plt.plot(stdVec)
     # plt.show()
     return stdVec
-
 
 def findPicksTroughths(movVarM, prominence=0.5):
     # find negative peaks (=least std, most stable line)
