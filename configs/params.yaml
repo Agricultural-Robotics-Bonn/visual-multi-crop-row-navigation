@@ -30,45 +30,56 @@ update rate: 30
 queue_size: 5
 
 imgResizeRatio: 100
+# for filtering contours
+minContourArea: 10
 
-stationaryDebug: True
+
+
+stationaryDebug: False
 # run time params
 # Mode 1: Driving forward with front camera (starting mode)
 # Mode 2: Driving forward with back camera
 # Mode 3: Driving backwards with back camera
 # Mode 4: Driving backwards with front camera
-navigationMode: 1
+navigationMode: 2
+
 # angular velocity scaler
 maxOmega: 0.05 
 minOmega: 0.01 
 omegaScaler: 0.1
 maxLinearVel: 0.5 
 minLinearVel: 0.01
+
 # Parameter for setting the number of rows to pass in one switch
-lines_to_pass: 1
+linesToPass: 1
 # Max Offset of the Window for extracting the turn features
-max_matching_dif_features: 100
+maxMatchingDifference: 100
 # Min Offset of the Window for extracting the turn features
-min_matching_dif_features: 0
+minMatchingDifference: 0
 # Threshold for keypoints
-matching_keypoints_th: 10
+matchingKeypointsNum: 10
+
 # scanner window params
-winSweepStart: 0
-winSweepEnd: 1280
-winMinWidth: 0
-# W/8 for small plants, W/5 for big plants
-winSize: 200
-# for filtering contours
-min_contour_area: 10
+scanSteps: 5
+scanStartPoint: 0
+scanEndPoint: 1280
+scanWindowWidth: 128
+
+# tracker params
+trackingBoxWidth: 200
+topOffset: 0
+bottomOffset: 0
+sacleRatio: 0.4
+
 # for dividing bushy rows
-max_coutour_height: 120
+maxCoutourHeight: 120
 #  in case of using bigger size image size, we suggest to set ROI 
 enable_roi: True
 p1: 
  - 0
  - 0
 p2:
- - 300
+ - 350
  - 0
 p3:
  - 10
@@ -77,7 +88,7 @@ p4:
  - 0
  - 720
 p5: 
- - 880
+ - 830
  - 0
 p6:
  - 1280

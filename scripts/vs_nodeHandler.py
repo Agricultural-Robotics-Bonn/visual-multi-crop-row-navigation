@@ -131,6 +131,13 @@ class vs_nodeHandler:
             "minMatchingDifference": rospy.get_param('minMatchingDifference'),
         }
 
+        self.trackerParams = {
+            "sacleRatio": rospy.get_param('sacleRatio'),
+            "topOffset": rospy.get_param('topOffset'),
+            "bottomOffset": rospy.get_param('bottomOffset'),
+            "trackingBoxWidth": rospy.get_param('trackingBoxWidth'),
+        }
+
         # speed limits
         self.omegaScaler = rospy.get_param('omegaScaler')
         self.maxOmega = rospy.get_param('maxOmega')
@@ -149,44 +156,60 @@ class vs_nodeHandler:
 
         # camera
         self.camera = cam.Camera(1,1.2,0,1,np.deg2rad(-80),0.96,0,0,1)
-        self.imageProcessor = imc.imageProc(self.scannerParams, 
-                                            self.contourParams, 
-                                            self.rioProp, 
-                                            self.featureParams)
+        self.imageProcessor = imc.imageProc(self.scannerParams,
+                                            self.contourParams,
+                                            self.rioParams,
+                                            self.trackerParams)
 
-        self.camera_model = image_geometry.PinholeCameraModel()
-        rospy.loginfo('Detection Camera initialised, {}, , {}'.format(
-            self.color_topic, self.depth_topic, self.camera_info_topic))
+        self.cameraModel = image_geometry.PinholeCameraModel()
+        rospy.loginfo('Detection Camera initialised..')
         print('')
+
+        self.featureMatcher = featureMatching(self.featureParams)
 
         rospy.loginfo("#[VS] navigator initialied ... ")
         
     # main function to guide the robot through crop rows
     def navigate(self):
         # get the currently used image
-        primaryRGB, primaryDepth = self.getProcessingImage(self.frontImg, self.backImg)
+        primaryRGB, primaryDepth = self.getProcessingImage(self.frontImg, 
+                                                           self.frontDepth, 
+                                                           self.backImg,
+                                                           self.backDepth)
         # If the feature extractor is not initialized yet, this has to be done
-        if not self.imageProcessor.findCropRows(primaryRGB, primaryDepth, mode='RGB-D'):
+        if not self.imageProcessor.findCropLane(primaryRGB, primaryDepth, mode='RGB-D'):
             # this is only False if the initialization in 'setImage' was unsuccessful
             rospy.logwarn("The initialization was unsuccessful!! ")
             # switch cameras
-            primaryRGB, primaryDepth = self.getProcessingImage(self.frontImg, self.backImg, switchCamera=True)
-        else:  
+            # primaryRGB, primaryDepth = self.getProcessingImage(self.frontImg,
+            #                                                    self.backImg,
+            #                                                    self.backImg,
+            #                                                    self.backDepth,
+            #                                                    switchCamera=True)
+        else:
             # if the robot is currently following a line and is not turning just compute the controls
-            if not self.switchingMode:
-                validPathFound, ctlCommands = self.computeControls()
+            if not self.switchingMode :
+                self.imageProcessor.trackCropLane()
+                ctlCommands = self.computeControls(self.imageProcessor.cropLaneFound,
+                                                   self.imageProcessor.P,
+                                                   self.imageProcessor.ang)
                 # if the validPathFound is False (no lines are found)
-                if not validPathFound:
-                    rospy.logwarn("no lines are found !! validPathFound is False")
-                    # switch to next mode
-                    self.updateNavigationStage()
+                if self.imageProcessor.cropLaneFound and not self.imageProcessor.cropRowEnd:
+                    self.velocityMsg.linear.x = ctlCommands[0]
+                    self.velocityMsg.linear.y = 0.0
+                    self.velocityMsg.angular.z = ctlCommands[1]
+
+                elif self.imageProcessor.cropRowEnd:
+                    if self.isFollowingLane():
+                        self.updateNavigationStage()
+                        # switch to next mode
+                        self.imageProcessor.reset()
+                        self.imageProcessor.isInitialized = False
+                        primaryRGB, primaryDepth = self.switchCamera()
+                        self.navigate()
                     # if the mode is 2 or 4 one just switches the camera
                     if self.isExitingLane():
-                        self.imageProcessor.reset()
-                        self.getProcessingImage(self.frontImg, self.backImg, switchCamera=True)
-                        self.navigate()
-                    # if the mode is 1 or 3 the robot follows rows 
-                    else:
+                        self.updateNavigationStage()
                         print("#[INF] Turning Mode Enabled!!")
                         self.switchingMode = True
                         self.velocityMsg = Twist()
@@ -195,21 +218,20 @@ class vs_nodeHandler:
                         self.velocityMsg.angular.z = 0.0
                         time.sleep(1.0)
                         # Compute the features for the turning and stop the movement
-                        detectTrackingFeatures(self.navigationMode,
-                                               self.imageProcessor.primaryRGBImg,
-                                               self.imageProcessor.greenIDX,
-                                               self.imageProcessor.mask, 
-                                               self.imageProcessor.windowLocations,
-                                               turnWindowWidth = 100)
+                        self.featureMatcher.sampleCropRowFeatures(self.navigationMode,
+                                                                  self.imageProcessor.primaryRGBImg,
+                                                                  self.imageProcessor.greenIDX,
+                                                                  self.imageProcessor.mask, 
+                                                                  self.imageProcessor.rowTrackingBoxes)
                         time.sleep(1.0)
-                else:
-                    self.velocityMsg.linear.x = ctlCommands[0]
-                    self.velocityMsg.linear.y = 0.0
-                    self.velocityMsg.angular.z = ctlCommands[1]
-            # if the turning mode is enabled
+
             else: 
                 # test if the condition for the row switching is fulfilled
-                newLaneFound, graphic_img = matchTrackingFeatures(self.navigationMode)
+                newLaneFound, graphic_img = self.featureMatcher.detectNewCropRow(self.navigationMode,
+                                                                  self.imageProcessor.primaryRGBImg,
+                                                                  self.imageProcessor.greenIDX,
+                                                                  self.imageProcessor.mask, 
+                                                                  self.imageProcessor.rowTrackingBoxes)
                 if newLaneFound:
                     # the turn is completed and the new lines to follow are computed
                     self.imageProcessor.reset()
@@ -241,15 +263,14 @@ class vs_nodeHandler:
               self.velocityMsg.linear.x, 
               self.velocityMsg.linear.y, 
               round(self.velocityMsg.angular.z, 3),
-              self.linearMotionDir,
-              self.rotationDir)
+              self.imageProcessor.numOfCropRows)
 
         # Publish the Graphics image
         self.imageProcessor.drawGraphics()
-        graphic_img = self.bridge.cv2_to_imgmsg(self.imageProcessor.processedIMG, encoding='rgb8')
+        graphic_img = self.bridge.cv2_to_imgmsg(self.imageProcessor.graphicsImg, encoding='bgr8')
         self.graphic_pub.publish(graphic_img)
         # publish predicted Mask
-        mask_msg = CvBridge().cv2_to_imgmsg(self.mask)
+        mask_msg = CvBridge().cv2_to_imgmsg(self.imageProcessor.mask)
         mask_msg.header.stamp = rospy.Time.now()
         self.mask_pub.publish(mask_msg)
         # publish Exg image 
@@ -258,8 +279,7 @@ class vs_nodeHandler:
         self.exg_pub.publish(exg_msg)
     
     def frontSyncCallback(self, rgbImage, depthImage, camera_info_msg):
-        self.camera_model.fromCameraInfo(camera_info_msg)
-        # print("here")
+        self.cameraModel.fromCameraInfo(camera_info_msg)
         try:
             # Convert your ROS Image message to OpenCV2
             self.frontImg = self.bridge.imgmsg_to_cv2(rgbImage, "bgr8")
@@ -288,7 +308,7 @@ class vs_nodeHandler:
                 self.navigate()
     
     def backSyncCallback(self, rgbImage, depthImage, camera_info_msg):
-        self.camera_model.fromCameraInfo(camera_info_msg)
+        self.cameraModel.fromCameraInfo(camera_info_msg)
         # print("here")
         try:
             # Convert your ROS Image message to OpenCV2
@@ -310,11 +330,11 @@ class vs_nodeHandler:
             print(e)
 
         # get image size
-        self.imgHeight, self.imgWidth, self.imgCh = self.frontImg.shape
+        self.imgHeight, self.imgWidth, self.imgCh = self.backImg.shape
         # if the image is not empty
         if self.frontImg is not None and self.backImg is not None:
             # compute and publish robot controls if the image is currently used
-            if self.primaryCamera:
+            if not self.primaryCamera:
                 self.navigate()
 
     def front_camera_callback(self, data):
@@ -353,7 +373,7 @@ class vs_nodeHandler:
         """updates navigation stagte (one higher or reset to 1 from > 4)
         """
         self.navigationMode += 1
-        if self.navigationMode > 4:
+        if self.navigationMode > 5:
             self.navigationMode = 1  
         inputKey = input("#[INF] Press Enter to continue with mode:")
         print("#[INF] Switched to mode ", self.navigationMode)
@@ -404,47 +424,41 @@ class vs_nodeHandler:
         self.rotationDir = -self.rotationDir
         print("&&&&&&&&&&&&&&&&&&&&&switched Direction of Rotation ...", self.rotationDir)
 
-    def getProcessingImage(self, frontImg, backImg, switchCamera=False):
+    def switchCamera(self):
+        print("switch camera to the other ...")
+        # Function to manage the switching between the two cameras
+        self.primaryCamera = not self.primaryCamera
+
+    def getProcessingImage(self, frontRgb, frontDepth, backRgb, backDepth):
         """Function to set the currently used image
 
         Args:
             frontImg (_type_): _description_
             backImg (_type_): _description_
-            switchCamera (bool, optional): _description_. Defaults to False.
 
         Returns:
             _type_: _description_
         """
-        if switchCamera:
-            print("switch camera to the other ...")
-            # Function to manage the switching between the two cameras
-            self.primaryCamera = not self.primaryCamera
         # The front image is used
         if self.primaryCamera:
-            primaryImg = frontImg
+            primaryRgb = frontRgb
+            primaryDepth = frontDepth
         # The back image is used
         else:
-            primaryImg = backImg
-        return primaryImg     
+            primaryRgb = backRgb
+            primaryDepth = backDepth
+        return primaryRgb, primaryDepth
     
-    def computeControls(self):
+    def computeControls(self, LaneFound, P, Angle):
         """Function to compute the controls when following a crop row
 
         Returns:
             _type_: _description_
         """
-        # extract features via the feature extractor
-        lineFound, self.mask = self.imageProcessor.updateCropRowWindows()
-        # if features are found and the end of the row is not reached yet
-        if lineFound: 
-            # print("line found -- compute controls...")
-            # extract the features
-            x = self.imageProcessor.P[0]
-            y = self.imageProcessor.P[1]
-            t = self.imageProcessor.ang
+        if LaneFound:
             # define desired and actual feature vector
             desiredFeature = np.array([0.0, self.imgWidth/2, 0.0])
-            actualFeature = np.array([x, y, t])
+            actualFeature = np.array([P[0], P[1], Angle])
             # compute controls
             controls = visualServoingCtl.visualServoingCtl(self.camera,
                                                 desiredFeature, 
@@ -461,27 +475,24 @@ class vs_nodeHandler:
             # store the command in a cache
             self.omegaBuffer.append(omega)
             
-            return True, [rho, omega]
-        
-        # if no lines are found or the end of the row is reached
+            return [rho, omega]  
         else:
-            print("No line found -- End of Row")
             # using the last known control 
             if len(self.omegaBuffer) == 0:
                 self.omegaBuffer.append(0.0)
             # straight exit
             omega = 0.0
             rho = 0.05 * self.linearMotionDir
-            return False, [rho, omega]
+            return [rho, omega]  
 
     def transformTargets(self, targets, frameName):
         cameraToOdomTF = None
         targetList = []
         try:
             cameraToOdomTF = self.tfBuffer.lookup_transform(
-                frameName, self.camera_model.tfFrame(), rospy.Time(0))
+                frameName, self.cameraModel.tfFrame(), rospy.Time(0))
         except:
-            rospy.logerr("lookup_transform " + frameName + " to " + self.camera_model.tfFrame() + " failed !!!")
+            rospy.logerr("lookup_transform " + frameName + " to " + self.cameraModel.tfFrame() + " failed !!!")
         
         if not cameraToOdomTF == None:
             for i in range(len(targets)):
