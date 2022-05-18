@@ -391,7 +391,7 @@ class imageProc:
         plantObjects = getPlantMasks(
             mask, self.contourParams["minContourArea"], bushy=False)
         # get center of contours
-        contCenterPTS = getCCenter(plantObjects)
+        contCenterPTS = getContourCenter(plantObjects)
         x = contCenterPTS[:, 1]
         y = contCenterPTS[:, 0]
         # cv.imshow("RGB image",mask.astype('uint8'))
