@@ -19,7 +19,6 @@ from geometric import *
 from featureMatching import *
 from movingVariance import *
 
-
 class imageProc:
     def __init__(self, scannerParams, contourParams, roiParams, trackerParams):
         """# class FeatureExtractor to extract the the line Features: bottom point, angle
@@ -37,7 +36,7 @@ class imageProc:
         self.reset()
 
     def reset(self):
-        print("**************Reset!!!!")
+        print("**************Reset*************")
         self.count = 0
         self.pointsInTop = 0
         self.pointsInBottom = 0
@@ -255,7 +254,7 @@ class imageProc:
                 xM, xB = getLineRphi(ptsFlip)
                 t_i, b_i = lineIntersectImgUpDown(xM, xB, self.imgHeight)
                 l_i, r_i = lineIntersectImgSides(xM, xB, self.imgHeight)
-                print("row ID:", boxIdx, t_i, b_i, l_i, r_i )
+                # print("row ID:", boxIdx, t_i, b_i, l_i, r_i )
                 # if the linefit does not return None and the line-image intersections
                 # are within the image bounds
                 if xM is not None and b_i >= 0 and b_i <= self.imgWidth:

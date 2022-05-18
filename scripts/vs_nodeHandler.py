@@ -126,7 +126,7 @@ class vs_nodeHandler:
 
         self.featureParams = {
             "linesToPass": rospy.get_param('linesToPass'),
-            "matchingKeypointsNum": rospy.get_param('matchingKeypointsNum'),
+            "minKeypointNum": rospy.get_param('minKeypointNum'),
             "maxMatchingDifference": rospy.get_param('maxMatchingDifference'),
             "minMatchingDifference": rospy.get_param('minMatchingDifference'),
         }
@@ -195,9 +195,7 @@ class vs_nodeHandler:
                                                    self.imageProcessor.ang)
                 # if the validPathFound is False (no lines are found)
                 if self.imageProcessor.cropLaneFound and not self.imageProcessor.cropRowEnd:
-                    self.velocityMsg.linear.x = ctlCommands[0]
-                    self.velocityMsg.linear.y = 0.0
-                    self.velocityMsg.angular.z = ctlCommands[1]
+                    self.setRobotVelocities(ctlCommands[0], 0.0, ctlCommands[1])
 
                 elif self.imageProcessor.cropRowEnd:
                     if self.isFollowingLane():
@@ -212,11 +210,7 @@ class vs_nodeHandler:
                         self.updateNavigationStage()
                         print("#[INF] Turning Mode Enabled!!")
                         self.switchingMode = True
-                        self.velocityMsg = Twist()
-                        self.velocityMsg.linear.x = 0.0
-                        self.velocityMsg.linear.y = 0.0
-                        self.velocityMsg.angular.z = 0.0
-                        time.sleep(1.0)
+                        self.stopRobot(2.0)
                         # Compute the features for the turning and stop the movement
                         self.featureMatcher.sampleCropRowFeatures(self.navigationMode,
                                                                   self.imageProcessor.primaryRGBImg,
@@ -227,34 +221,27 @@ class vs_nodeHandler:
 
             else: 
                 # test if the condition for the row switching is fulfilled
-                newLaneFound, graphic_img = self.featureMatcher.detectNewCropRow(self.navigationMode,
+                foundNewCropLane = self.featureMatcher.detectNewCropLane(self.navigationMode,
                                                                   self.imageProcessor.primaryRGBImg,
                                                                   self.imageProcessor.greenIDX,
                                                                   self.imageProcessor.mask, 
-                                                                  self.imageProcessor.rowTrackingBoxes)
-                if newLaneFound:
+                                                                  self.imageProcessor.rowTrackingBoxes,
+                                                                  self.imageProcessor.numOfCropRows)
+                if foundNewCropLane:
+                    print("following new Lane !! hohohhhh ;D")
                     # the turn is completed and the new lines to follow are computed
                     self.imageProcessor.reset()
                     self.switchDirection()
                     self.switchingMode = False
-                    self.velocityMsg = Twist()
-                    self.velocityMsg.linear.x = 0.07 * self.linearMotionDir
-                    self.velocityMsg.linear.y = 0.0
-                    self.velocityMsg.angular.z = 0.0
+                    self.setRobotVelocities(0.07 * self.linearMotionDir, 0.0, 0.0)
                     print("#[INF] Turning Mode disabled, entering next rows")
                 else:
                     # if the condition is not fulfilled the robot moves continouisly sidewards
-                    self.velocityMsg = Twist()
-                    self.velocityMsg.linear.x = 0.0
-                    self.velocityMsg.linear.y = -0.08
-                    self.velocityMsg.angular.z = 0.0
+                    self.setRobotVelocities(0.0, -0.08, 0.0)
                     # check Odometry for safty (not to drive so much!)
                     print("#[INF] Side motion to find New Lane ...")
-        
-        if not self.stationaryDebug:
-            # publish the commands to the robot
-            if self.velocityMsg is not None:
-                self.velocity_pub.publish(self.velocityMsg)
+
+        self.publishImageTopics()
 
         print("#[INF] m:", 
               self.navigationMode, 
@@ -265,6 +252,8 @@ class vs_nodeHandler:
               round(self.velocityMsg.angular.z, 3),
               self.imageProcessor.numOfCropRows)
 
+    
+    def publishImageTopics(self):
         # Publish the Graphics image
         self.imageProcessor.drawGraphics()
         graphic_img = self.bridge.cv2_to_imgmsg(self.imageProcessor.graphicsImg, encoding='bgr8')
@@ -277,7 +266,25 @@ class vs_nodeHandler:
         exg_msg = CvBridge().cv2_to_imgmsg(self.imageProcessor.greenIDX)
         exg_msg.header.stamp = rospy.Time.now()
         self.exg_pub.publish(exg_msg)
-    
+
+    def setRobotVelocities(self, x, y, omega):
+        self.velocityMsg = Twist()
+        self.velocityMsg.linear.x = x
+        self.velocityMsg.linear.y = y
+        self.velocityMsg.angular.z = omega
+        if not self.stationaryDebug:
+            # publish the commands to the robot
+            if self.velocityMsg is not None:
+                self.velocity_pub.publish(self.velocityMsg)
+
+    def stopRobot(self, delay):
+        self.velocityMsg = Twist()
+        self.velocityMsg.linear.x = 0.0
+        self.velocityMsg.linear.y = 0.0
+        self.velocityMsg.angular.z = 0.0
+        time.sleep(delay)
+        self.velocity_pub.publish(self.velocityMsg)
+
     def frontSyncCallback(self, rgbImage, depthImage, camera_info_msg):
         self.cameraModel.fromCameraInfo(camera_info_msg)
         try:
