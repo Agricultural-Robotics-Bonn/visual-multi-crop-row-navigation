@@ -146,7 +146,6 @@ class imageProc:
             print(
                 '--- Initialisation failed - No lines detected by sweeping window ---')
             self.cropLaneFound = False
-        
         return lines, linesROIs
 
     def findCropRowsInMVSignal(self, peaksPos, peaksNeg, mvSignal, lines, linesROIs):

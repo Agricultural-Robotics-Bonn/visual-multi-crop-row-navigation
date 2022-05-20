@@ -1,12 +1,9 @@
 
 import cv2 as cv
-from matplotlib.image import BboxImage
 import numpy as np
 import itertools
-import copy
-from cv_bridge import CvBridge
 import matplotlib.pyplot as plt
-from scipy.signal import find_peaks
+from movingVariance import *
 
 from shapely.geometry import Point
 from shapely.geometry.polygon import Polygon
@@ -45,8 +42,6 @@ class featureMatching:
         _rgbImg = rgbImg.copy()
         # get masked rgb Image (ExG masked)
         rgbMasked = self.maskRgb(rgbImg, binaryMask)
-        # find new crop rows and compare to old ones!
-
         # extract keypoints and descriptors from new detected line
         srcKeypoints, srcDescriptors = self.detectTrackingFeatures(rgbMasked)
         # filter in desired window
@@ -56,20 +51,22 @@ class featureMatching:
         # find matches between ref and src keypoints
         matches = self.matchTrackingFeatures(srcKeypoints, srcDescriptors)
         # if not that indicates that the window is between two lines
-        print(self.count, len(matches))
-
         # draw keypoints on rgb Image
         self.drawKeyPoints(_rgbImg, srcKeypoints, [0,255,0])
-        
+        # collect matches
         self.simDistVec = list(self.simDistVec)
         self.simDistVec.append(len(matches))
-
+        # create recognition signal
         peaks = []    
-        if self.count > 110: 
+        if self.count > 10: 
             # self.simDistVec = np.where(self.simDistVec > 20, np.max(self.simDistVec), self.simDistVec)
-            troughs, _ = find_peaks(self.simDistVec, prominence=2, height=5)
-            self.simDistVec = np.negative(self.simDistVec)
-            peaks, _ = find_peaks(self.simDistVec, prominence=2, height=-5)
+            # troughs, _ = find_peaks(self.simDistVec, prominence=2, height=5)
+            # self.simDistVec = np.negative(self.simDistVec)
+            # peaks, _ = find_peaks(self.simDistVec, prominence=2, height=-5)
+            # compute moving standard deviation
+            mvSignal = movingStd(self.simDistVec)
+            # find positive an negative peaks of the signal
+            peaks, troughs = findPicksTroughths(mvSignal, 0.5)
             plt.plot(self.simDistVec)
             pickPoses = [self.simDistVec[p] for p in peaks]
             troughPoses = [self.simDistVec[p] for p in troughs]
@@ -79,7 +76,6 @@ class featureMatching:
             plt.show()  
 
         self.count+=1
-
         return (len(peaks) >= numofCropRows and len(troughs) >= numofCropRows+1)
 
     def maskRgb(self, rgbImg, mask):
