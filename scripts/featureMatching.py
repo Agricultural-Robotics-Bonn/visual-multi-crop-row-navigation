@@ -65,17 +65,22 @@ class featureMatching:
         self.simDistVec.append(len(matches))
 
         peaks = []    
-        if self.count > 100: 
+        if self.count > 110: 
+            # self.simDistVec = np.where(self.simDistVec > 20, np.max(self.simDistVec), self.simDistVec)
+            troughs, _ = find_peaks(self.simDistVec, prominence=2, height=5)
             self.simDistVec = np.negative(self.simDistVec)
             peaks, _ = find_peaks(self.simDistVec, prominence=2, height=-5)
             plt.plot(self.simDistVec)
             pickPoses = [self.simDistVec[p] for p in peaks]
-            plt.plot(peaks, pickPoses , "x")
+            troughPoses = [self.simDistVec[p] for p in troughs]
+            plt.plot(peaks, pickPoses , "o")
+            plt.plot(troughs, troughPoses , "x")
             plt.plot(np.zeros_like(self.simDistVec), "--", color="gray")
             plt.show()  
 
         self.count+=1
-        return len(peaks) == numofCropRows
+
+        return (len(peaks) >= numofCropRows and len(troughs) >= numofCropRows+1)
 
     def maskRgb(self, rgbImg, mask):
         maskedRgb = np.zeros(np.shape(rgbImg), np.uint8)

@@ -228,9 +228,8 @@ class vs_nodeHandler:
                                                                   self.imageProcessor.rowTrackingBoxes,
                                                                   self.imageProcessor.numOfCropRows)
                 if foundNewCropLane:
-                    print("following new Lane !! hohohhhh ;D")
+                    print("following new Lane !!")
                     # the turn is completed and the new lines to follow are computed
-                    self.imageProcessor.reset()
                     self.switchDirection()
                     self.switchingMode = False
                     self.setRobotVelocities(0.07 * self.linearMotionDir, 0.0, 0.0)

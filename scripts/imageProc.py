@@ -456,29 +456,30 @@ class imageProc:
     def drawGraphics(self):
         """function to draw the lines and the windows onto the image (self.primaryRGBImg)
         """
-        self.graphicsImg = self.primaryRGBImg.copy()
-        # main line
-        cv.line(self.graphicsImg, (int(self.mainLine_up[0]), int(self.mainLine_up[1])), (int(
-            self.mainLine_down[0]), int(self.mainLine_down[1])), (255, 0, 0), thickness=3)
-        # contoures
-        cv.drawContours(self.graphicsImg,
-                        self.plantObjects2D, -1, (10, 50, 150), 3)
-        for i in range(0, len(self.allLineStart)):
-            # helper lines
-            cv.line(self.graphicsImg, (int(self.allLineStart[i, 0]), int(self.allLineStart[i, 1])), (int(
-                self.allLineEnd[i, 0]), int(self.allLineEnd[i, 1])), (0, 255, 0), thickness=1)
+        if self.primaryRGBImg != []:
+            self.graphicsImg = self.primaryRGBImg.copy()
+            # main line
+            cv.line(self.graphicsImg, (int(self.mainLine_up[0]), int(self.mainLine_up[1])), (int(
+                self.mainLine_down[0]), int(self.mainLine_down[1])), (255, 0, 0), thickness=3)
+            # contoures
+            cv.drawContours(self.graphicsImg,
+                            self.plantObjects2D, -1, (10, 50, 150), 3)
+            for i in range(0, len(self.allLineStart)):
+                # helper lines
+                cv.line(self.graphicsImg, (int(self.allLineStart[i, 0]), int(self.allLineStart[i, 1])), (int(
+                    self.allLineEnd[i, 0]), int(self.allLineEnd[i, 1])), (0, 255, 0), thickness=1)
 
-        for i in range(self.numOfCropRows):
-            int_coords = lambda x: np.array(x).round().astype(np.int32)
-            exterior = [int_coords(self.rowTrackingBoxes[i].exterior.coords)]
-            cv.polylines(self.graphicsImg, exterior, True, (0, 255, 255))
+            for i in range(self.numOfCropRows):
+                int_coords = lambda x: np.array(x).round().astype(np.int32)
+                exterior = [int_coords(self.rowTrackingBoxes[i].exterior.coords)]
+                cv.polylines(self.graphicsImg, exterior, True, (0, 255, 255))
 
-        for i in range(len(self.plantCenters2D[0])):
-            # draw point on countur centers
-            x = int(self.plantCenters2D[0, i])
-            y = int(self.plantCenters2D[1, i])
-            self.graphicsImg = cv.circle(
-                self.graphicsImg, (x, y), 3, (255, 0, 255), 5)
+            for i in range(len(self.plantCenters2D[0])):
+                # draw point on countur centers
+                x = int(self.plantCenters2D[0, i])
+                y = int(self.plantCenters2D[1, i])
+                self.graphicsImg = cv.circle(
+                    self.graphicsImg, (x, y), 3, (255, 0, 255), 5)
 
     def handleKey(self, sleepTime=0):
         key = cv.waitKey(sleepTime)
