@@ -57,26 +57,26 @@ class featureMatching:
         self.simDistVec = list(self.simDistVec)
         self.simDistVec.append(len(matches))
         # create recognition signal
-        peaks = []    
-        if self.count > 10: 
-            # self.simDistVec = np.where(self.simDistVec > 20, np.max(self.simDistVec), self.simDistVec)
-            # troughs, _ = find_peaks(self.simDistVec, prominence=2, height=5)
-            # self.simDistVec = np.negative(self.simDistVec)
-            # peaks, _ = find_peaks(self.simDistVec, prominence=2, height=-5)
+        peaks, troughs= [], []   
+        if self.count > 90: 
+            self.simDistVec = np.where(np.array(self.simDistVec) >= 10, 10, np.min(self.simDistVec))
             # compute moving standard deviation
             mvSignal = movingStd(self.simDistVec)
             # find positive an negative peaks of the signal
-            peaks, troughs = findPicksTroughths(mvSignal, 0.5)
+            peaks, troughs = findPicksTroughths(self.simDistVec, 0.5)
+            print("peaks", len(peaks), "troughs", len(troughs))
+             
+        self.count+=1
+        if ((len(peaks) >= numofCropRows and len(troughs) >= numofCropRows)):
             plt.plot(self.simDistVec)
             pickPoses = [self.simDistVec[p] for p in peaks]
             troughPoses = [self.simDistVec[p] for p in troughs]
             plt.plot(peaks, pickPoses , "o")
             plt.plot(troughs, troughPoses , "x")
             plt.plot(np.zeros_like(self.simDistVec), "--", color="gray")
-            plt.show()  
-
-        self.count+=1
-        return (len(peaks) >= numofCropRows and len(troughs) >= numofCropRows+1)
+            plt.show() 
+            
+        return (len(peaks) >= numofCropRows and len(troughs) >= numofCropRows)
 
     def maskRgb(self, rgbImg, mask):
         maskedRgb = np.zeros(np.shape(rgbImg), np.uint8)

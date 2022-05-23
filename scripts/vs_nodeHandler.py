@@ -95,8 +95,6 @@ class vs_nodeHandler:
             self.primaryCamera = True
         else:
             self.primaryCamera = False
-        # switch process control parameters and settings
-        self.switchingMode = False
         #  used to recoder direction of motion
         self.omegaBuffer = list()
 
@@ -153,6 +151,7 @@ class vs_nodeHandler:
 
         self.velocityMsg = Twist()
         self.enoughPoints = True
+        self.samplingDone = False
 
         # camera
         self.camera = cam.Camera(1,1.2,0,1,np.deg2rad(-80),0.96,0,0,1)
@@ -180,45 +179,42 @@ class vs_nodeHandler:
         if not self.imageProcessor.findCropLane(primaryRGB, primaryDepth, mode='RGB-D'):
             # this is only False if the initialization in 'setImage' was unsuccessful
             rospy.logwarn("The initialization was unsuccessful!! ")
-            # switch cameras
-            # primaryRGB, primaryDepth = self.getProcessingImage(self.frontImg,
-            #                                                    self.backImg,
-            #                                                    self.backImg,
-            #                                                    self.backDepth,
-            #                                                    switchCamera=True)
         else:
+            print("cropLaneFound", self.imageProcessor.cropLaneFound, "cropRowEnd", self.imageProcessor.cropRowEnd)
             # if the robot is currently following a line and is not turning just compute the controls
-            if not self.switchingMode :
-                self.imageProcessor.trackCropLane()
+            if self.isFollowingLane() :
+                self.imageProcessor.trackCropLane(self.navigationMode)
                 ctlCommands = self.computeControls(self.imageProcessor.cropLaneFound,
                                                    self.imageProcessor.P,
                                                    self.imageProcessor.ang)
-                # if the validPathFound is False (no lines are found)
-                if self.imageProcessor.cropLaneFound and not self.imageProcessor.cropRowEnd:
+
+                if not self.imageProcessor.cropRowEnd:
+                    print("#[INF] Following detected Lane ...")
                     self.setRobotVelocities(ctlCommands[0], 0.0, ctlCommands[1])
 
                 elif self.imageProcessor.cropRowEnd:
-                    if self.isFollowingLane():
-                        self.updateNavigationStage()
-                        # switch to next mode
-                        self.imageProcessor.reset()
-                        self.imageProcessor.isInitialized = False
-                        primaryRGB, primaryDepth = self.switchCamera()
-                        self.navigate()
-                    # if the mode is 2 or 4 one just switches the camera
+                    print("#[INF] End of Lane detected ...")
+                    
                     if self.isExitingLane():
                         self.updateNavigationStage()
-                        print("#[INF] Turning Mode Enabled!!")
-                        self.switchingMode = True
-                        self.stopRobot(2.0)
-                        # Compute the features for the turning and stop the movement
-                        self.featureMatcher.sampleCropRowFeatures(self.navigationMode,
-                                                                  self.imageProcessor.primaryRGBImg,
-                                                                  self.imageProcessor.greenIDX,
-                                                                  self.imageProcessor.mask, 
-                                                                  self.imageProcessor.rowTrackingBoxes)
-                        time.sleep(1.0)
+                    else:
+                        self.updateNavigationStage()
+                        self.imageProcessor.reset()
+                        self.imageProcessor.isInitialized = False
+                        self.imageProcessor.cropRowEnd = False
+                        self.switchCamera()
 
+            elif self.isSwitchingLane() and not self.samplingDone:
+                print("#[INF] Sampling the Lane!!")
+                self.stopRobot(2.0)
+                # Compute the features for the turning and stop the movement
+                self.featureMatcher.sampleCropRowFeatures(self.navigationMode,
+                                                            self.imageProcessor.primaryRGBImg,
+                                                            self.imageProcessor.greenIDX,
+                                                            self.imageProcessor.mask, 
+                                                            self.imageProcessor.rowTrackingBoxes)
+                self.samplingDone = True
+                self.stopRobot(2.0)
             else: 
                 # test if the condition for the row switching is fulfilled
                 foundNewCropLane = self.featureMatcher.detectNewCropLane(self.navigationMode,
@@ -228,15 +224,15 @@ class vs_nodeHandler:
                                                                   self.imageProcessor.rowTrackingBoxes,
                                                                   self.imageProcessor.numOfCropRows)
                 if foundNewCropLane:
+                    self.stopRobot(2.0)
                     print("following new Lane !!")
                     # the turn is completed and the new lines to follow are computed
                     self.switchDirection()
-                    self.switchingMode = False
-                    self.setRobotVelocities(0.07 * self.linearMotionDir, 0.0, 0.0)
-                    print("#[INF] Turning Mode disabled, entering next rows")
+                    print("#[INF] Turning Mode disabled, Entering next lane")
+                    self.updateNavigationStage()
                 else:
                     # if the condition is not fulfilled the robot moves continouisly sidewards
-                    self.setRobotVelocities(0.0, -0.08, 0.0)
+                    self.setRobotVelocities(0.0, -0.05, 0.0)
                     # check Odometry for safty (not to drive so much!)
                     print("#[INF] Side motion to find New Lane ...")
 
@@ -379,41 +375,52 @@ class vs_nodeHandler:
         """updates navigation stagte (one higher or reset to 1 from > 4)
         """
         self.navigationMode += 1
-        if self.navigationMode > 5:
+        if self.navigationMode > 6:
             self.navigationMode = 1  
         inputKey = input("#[INF] Press Enter to continue with mode:")
         print("#[INF] Switched to mode ", self.navigationMode)
     
-    def isExitingLane(self):
-        """condition of line existing action, modes 2, 4
+    def isSwitchingLane(self):
+        """condition of line existing action, modes 3, 6
 
         Returns:
             _type_: _description_
         """
-        if self.navigationMode == 2 or self.navigationMode == 4:
+        if self.navigationMode == 3 or self.navigationMode == 6:
+            return True
+        else:
+            return False
+
+    def isExitingLane(self):
+        """condition of line existing action, modes 2, 5
+
+        Returns:
+            _type_: _description_
+        """
+        if self.navigationMode in [2 ,5]:
             return True
         else:
             return False
     
     def isFollowingLane(self):
-        """if following a lane, modes 1, 3
+        """if following a lane, modes 1, 4
 
         Returns:
             _type_: _description_
         """
-        if self.navigationMode == 1 or self.navigationMode == 3:
+        if self.navigationMode in [1,2,4,5]:
             return True
         else:
             return False
     
     def isUsingFrontCamera(self):
-        if self.navigationMode == 1 or self.navigationMode == 4:
+        if self.navigationMode == 1 or self.navigationMode == 5 or self.navigationMode == 6:
             return True
         else:
             return False
     
     def isUsingBackCamera(self):
-        if self.navigationMode == 2 or self.navigationMode == 3:
+        if self.navigationMode == 2 or self.navigationMode == 3 or self.navigationMode == 4:
             return True
         else: 
             return False
@@ -421,7 +428,7 @@ class vs_nodeHandler:
     def switchDirection(self):
         """Function to manage the control variable for the driving direction
         """
-        self.linearMotionDir = -self.linearMotionDir
+        # self.linearMotionDir = -self.linearMotionDir
         print("#####################switched Direction of Motion ...", self.linearMotionDir)
     
     def switchRotationDir(self):

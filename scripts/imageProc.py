@@ -322,7 +322,7 @@ class imageProc:
         else:
             self.pointsInBottom += 1
 
-    def trackCropLane(self):
+    def trackCropLane(self, mode=None):
         """function to get lines at given window locations 
         Returns:
             _type_: _description_
@@ -369,9 +369,13 @@ class imageProc:
         
         if self.pointsInBottom == 0 and self.pointsInTop == 0:
             self.cropLaneFound = False
-        elif self.pointsInBottom == 0 or self.pointsInTop == 0:
+
+        if self.pointsInBottom == 0 and mode in [2, 5]:
             self.cropRowEnd = True
-            print(" self.cropRowEnd", self.cropRowEnd)
+        elif self.pointsInTop == 0 and mode in [1, 4]:
+            self.cropRowEnd = True
+        else:
+            self.cropRowEnd = False
 
         return self.cropLaneFound, self.cropRowEnd, P, ang
 
