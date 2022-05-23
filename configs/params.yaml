@@ -42,7 +42,7 @@ stationaryDebug: False
 # Mode 2: Driving forward with back camera
 # Mode 3: Driving backwards with back camera
 # Mode 4: Driving backwards with front camera
-navigationMode: 4
+navigationMode: 1
 # angular velocity scaler
 maxOmega: 0.05 
 minOmega: 0.01 

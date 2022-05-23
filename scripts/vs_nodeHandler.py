@@ -230,6 +230,9 @@ class vs_nodeHandler:
                     self.switchDirection()
                     print("#[INF] Turning Mode disabled, Entering next lane")
                     self.updateNavigationStage()
+                    self.imageProcessor.reset()
+                    self.imageProcessor.isInitialized = False
+                    self.imageProcessor.cropRowEnd = False
                 else:
                     # if the condition is not fulfilled the robot moves continouisly sidewards
                     self.setRobotVelocities(0.0, -0.05, 0.0)
@@ -247,7 +250,6 @@ class vs_nodeHandler:
               round(self.velocityMsg.angular.z, 3),
               self.imageProcessor.numOfCropRows)
 
-    
     def publishImageTopics(self):
         # Publish the Graphics image
         self.imageProcessor.drawGraphics()
@@ -428,7 +430,7 @@ class vs_nodeHandler:
     def switchDirection(self):
         """Function to manage the control variable for the driving direction
         """
-        # self.linearMotionDir = -self.linearMotionDir
+        self.linearMotionDir = -self.linearMotionDir
         print("#####################switched Direction of Motion ...", self.linearMotionDir)
     
     def switchRotationDir(self):

@@ -37,6 +37,9 @@ class featureMatching:
                                                                       self.refWindowLoc)
         # draw keypoints on rgb Image
         self.drawKeyPoints(_rgbImg, self.refKeypoints, [255,0,0])
+    
+    def reset(self):
+        
 
     def detectNewCropLane(self, mode, rgbImg, greenIDx, binaryMask, wLocs, numofCropRows):
         _rgbImg = rgbImg.copy()
