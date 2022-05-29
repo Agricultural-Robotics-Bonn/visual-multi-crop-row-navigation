@@ -10,7 +10,7 @@ __pycache__/
 *.pkl
 # C extensions
 *.so
-
+*.pth
 *.csv
 *.pickle
 
