@@ -83,7 +83,31 @@ launch main script:
             -DPYTHON_EXECUTABLE=/usr/bin/python3 \
             -DPYTHON_INCLUDE_DIR=/usr/include/python3.6m \
             -DPYTHON_LIBRARY=/usr/lib/x86_64-linux-gnu/libpython3.6m.so
-	 
+	    
+## Multi-Crop Row Navigation Dataset
+
+used for analyze the robustness of crop-row detection
+technique as a quantitative evaluate. For each of the
+five crops (sugar_beet, potato, beans, lemon-balm and coriander) and three
+simulated fields, 100 images were annotated using data from
+BonnBot-I where the camera tilt angle ρ was varied from 55◦
+to 75◦. The annotations contain ground-truth of all the lines
+located underneath the robot. 
+To measure the accuracy we compare the predicted lines of each image to the ground-truth
+using two parameters: position and orientation. The position
+of a line is defined based on its intersection with bottom edge
+of the image, where the distance between the prediction and
+the ground truth is normalized based on the width of the
+image.
+
+<div align="center">
+	
+[![IMAGE ALT TEXT HERE](https://)](https://)
+	
+</div>
+
+for accessing dataset please sned an email to: Alireza.ahmadi@uni-bonn.de 
+
 ## Citation 
 if you use this project in your recent works please refernce to it by:
 
