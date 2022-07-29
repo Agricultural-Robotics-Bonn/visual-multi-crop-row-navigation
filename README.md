@@ -1,6 +1,8 @@
        
 # Visual Multi Crop Row Navigation in Arable Farming Fields      
 
+A work presented in IROS 2022 - Kyoto, Japan
+
 <div align="center">
 	<img src="data/motivation.png" alt="BonnBot" height="340" title="BonnBot"/>
 </div>
