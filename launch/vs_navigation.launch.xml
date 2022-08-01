@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+
+<launch>
+    <arg name="robot_name" default="phenobot"/>
+    <arg name="tf_prefix" default=""/>
+
+    <arg name="use_rviz" default="true"/>
+
+    <!-- Run visual-servoing navigation  -->
+    <group>
+        <push-ros-namespace namespace="phenobot"/>
+        <node name="vs_navigation" pkg="visual_multi_crop_row_navigation" exec="vs_navigation"
+              output="screen">
+            <param from="$(find-pkg-share visual_multi_crop_row_navigation)/config/params.yaml"/>
+        </node>
+    </group>
+</launch>
