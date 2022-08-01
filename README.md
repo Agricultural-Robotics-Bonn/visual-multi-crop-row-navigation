@@ -14,7 +14,9 @@ Check out the [video1](https://youtu.be/z2Cb2FFZ2aU?t=43), of our robot followin
 	
 </div>
 
-### pyCUDA installation (optional)
+### pyCUDA installation (untested on this version)
+
+May have success adapting the below for https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/
 
 	wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64$
 	sudo mv cuda-ubuntu1804.pin /etc/apt/preferences.d/cuda-repository-pin-600
@@ -25,17 +27,10 @@ Check out the [video1](https://youtu.be/z2Cb2FFZ2aU?t=43), of our robot followin
 	sudo apt-get -y install cuda
 
 ### Dependencies
-- OpenCV == 3.3.0.10
-    - pip install opencv-python==3.3.0.10
-    - pip install opencv-contrib-python==3.3.0.10
-- ROS Melodic
-- itertools
-- scipy >= 1.5.2
-- numpy >= 1.19.9
 
-Install the dependencies
+- [ROS2 Humble](https://github.com/linorobot/ros2me)
+- pip3 install opencv-python opencv-contrib-python future scipy
 
-    rosdep install --from-paths src --ignore-src -r -y
 
 Install tf2_geometry_msgs from source (because we need the `do_transform_pose` which is going 
 to be merged in this [PR](https://github.com/ros2/geometry2/pull/533))
@@ -45,6 +40,10 @@ to be merged in this [PR](https://github.com/ros2/geometry2/pull/533))
     cd geometry2
     git fetch origin pull/533/head:pr-533
     git checkout pr-533
+    
+ROS dependencies
+    
+    rosdep install --from-paths src --ignore-src -r -y
 
 ### Build and run
 
@@ -66,37 +65,6 @@ launch main script:
 
     ros2 launch visual_multi_crop_row_navigation vs_navigation.launch.xml
     
-
-### Dependencies:
-- Thorvald Platfrom package [Thorvald Saga](https://www.nmbu.no/en/faculty/realtek/research/groups/roboticsandcontrol/thorvaldinstall/node/34632)
-- ROS Melodic
-- python packages:
-
-        sudo apt-get install python-catkin-tools python3-dev python3-catkin-pkg-modules python3-numpy python3-yaml ros-melodic-cv-bridge python3-opencv
-        python3 -m pip install scikit-build scikit-learn laspy pandas
-- build CV_Bridge for python3:
-
-        cd catkin_ws
-        git clone https://github.com/ros-perception/vision_opencv.git src/vision_opencv
-
-    Find version:
-    
-        sudo apt-cache show ros-melodic-cv-bridge | grep Version
-        Version: 1.12.8-0xenial-20180416-143935-0800
-    
-    Checkout right version in git repo. In our case it is 1.12.8
-
-        cd src/vision_opencv/
-        git checkout 1.12.8
-        cd ../../
-
-    build
-
-        catkin_make --cmake-args \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DPYTHON_EXECUTABLE=/usr/bin/python3 \
-            -DPYTHON_INCLUDE_DIR=/usr/include/python3.6m \
-            -DPYTHON_LIBRARY=/usr/lib/x86_64-linux-gnu/libpython3.6m.so
 	    
 ## Multi-Crop Row Navigation Dataset
 
