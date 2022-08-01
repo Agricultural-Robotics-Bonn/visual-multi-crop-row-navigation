@@ -33,26 +33,37 @@ Check out the [video1](https://youtu.be/z2Cb2FFZ2aU?t=43), of our robot followin
 - scipy >= 1.5.2
 - numpy >= 1.19.9
 
+Install the dependencies
+
+    rosdep install --from-paths src --ignore-src -r -y
+
+Install tf2_geometry_msgs from source (because we need the `do_transform_pose` which is going 
+to be merged in this [PR](https://github.com/ros2/geometry2/pull/533))
+
+    cd my_ws/src/
+    git clone https://github.com/ros2/geometry2.git
+    cd geometry2
+    git checkout mergify/bp/galactic/pr-509
+
 ### Build and run
 
-navigate to your catkin workspace folder, e.g.:
+navigate to your colcon workspace folder, e.g.:
   
-    cd catkin_ws/
+    cd my_ws/
     
-compile:
+clean:
 
-    rm -r build/
-    rm -r devel/
-    catkin_make
+    rm -rf build/ install/ log
+    colcon build
     
 source setup file:
 
-    source ./devel/setup.bash
+    source ./install/setup.bash
     
     
 launch main script:
 
-    roslaunch visual_multi_crop_row_navigation vs_navigation.py
+    ros2 launch visual_multi_crop_row_navigation vs_navigation.launch.xml
     
 
 ### Dependencies:
