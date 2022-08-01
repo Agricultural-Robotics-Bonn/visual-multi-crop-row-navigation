@@ -1,23 +1,13 @@
 #!/usr/bin/env python2
-from __future__ import division
-from __future__ import print_function
+from __future__ import division, print_function
 
-import scipy
-import cv2 as cv
-import numpy as np
-from matplotlib import pyplot as plt
-import itertools
-
-from torch import zero_
-from cv_bridge import CvBridge
-
-from shapely.geometry import Point
 from shapely.geometry.polygon import Polygon
 
 from contours import *
-from geometric import *
 from featureMatching import *
+from geometric import *
 from movingVariance import *
+
 
 class imageProc:
     def __init__(self, scannerParams, contourParams, roiParams, trackerParams):
@@ -72,7 +62,7 @@ class imageProc:
         self.rowTrackingBoxes = []
         self.updateTrackingBoxes()
 
-        self.numOfCropRows = len(self.rowTrackingBoxes) 
+        self.numOfCropRows = len(self.rowTrackingBoxes)
 
     def findCropLane(self, rgbImg, depthImg, mode='RGB-D', bushy=False):
         """finds Crops Rows in the image based on RGB and depth data
@@ -84,13 +74,14 @@ class imageProc:
         self.imgHeight, self.imgWidth, self.imgChannels = rgbImg.shape
         # if crop canopy type is busshy like Coriander
         self.bushy = bushy
-        
+
         # check if current image is not Empty or None
         if self.primaryRGBImg is None or len(self.primaryRGBImg) == 0:
             print("#[ERR] CR-Scanner - Image is None, Check Topics or the Sensor !")
         else:
             # initial RGB image process to get mask GreenIDx and plant centers
-            self.mask, self.greenIDX, self.plantObjects2D, self.plantCenters2D = self.processRGBImage(self.primaryRGBImg)
+            self.mask, self.greenIDX, self.plantObjects2D, self.plantCenters2D = self.processRGBImage(
+                self.primaryRGBImg)
             self.numPlantsInScene = len(self.plantCenters2D[0])
         if not self.isInitialized:
             print("#[INF] Find Crop Lane")
@@ -126,7 +117,8 @@ class imageProc:
             peaksPos, peaksNeg = findPicksTroughths(mvSignal, 0.5)
             # locate best lines
             self.CropRows, self.trackingBoxLoc = self.findCropRowsInMVSignal(peaksPos, peaksNeg,
-                                                        mvSignal, lines, linesROIs)
+                                                                             mvSignal, lines,
+                                                                             linesROIs)
             self.numOfCropRows = len(self.trackingBoxLoc)
             self.lostCropRows = list(np.zeros(self.numOfCropRows))
             # if there is any proper line to follow
@@ -135,9 +127,9 @@ class imageProc:
                 self.isInitialized = True
                 self.cropLaneFound = True
                 print('#[INF] Controller Initialized - Crop Rows:',
-                        len(self.CropRows),
-                        ', Window positions:',
-                        self.CropRows[:,0].tolist())
+                      len(self.CropRows),
+                      ', Window positions:',
+                      self.CropRows[:, 0].tolist())
             else:
                 print(
                     '--- Initialisation failed - No lines detected due to peak detection ---')
@@ -152,8 +144,8 @@ class imageProc:
         # if multiple lines
         if len(peaksPos) != 0 and len(peaksNeg) != 0 and len(mvSignal) != 0:
             # best line one each side of the crop row transition
-            qualifiedLines = np.zeros((len(peaksPos)+1, 2))
-            windowLocations = np.zeros((len(peaksPos)+1, 1))
+            qualifiedLines = np.zeros((len(peaksPos) + 1, 2))
+            windowLocations = np.zeros((len(peaksPos) + 1, 1))
             # get lines at each side of a positive peak (= crop row
             # transition and select the best)
             try:
@@ -167,10 +159,10 @@ class imageProc:
                         # second to last-1
                         if k < len(peaksPos):
                             linestmp = peaksNeg[peaksNeg < peaksPos[k]]
-                            peaksNegLine = linestmp[linestmp > peaksPos[k-1]]
+                            peaksNegLine = linestmp[linestmp > peaksPos[k - 1]]
                         # last peak
                         else:
-                            peaksNegLine = peaksNeg[peaksNeg > peaksPos[k-1]]
+                            peaksNegLine = peaksNeg[peaksNeg > peaksPos[k - 1]]
 
                     if len(peaksNegLine) != 0:
                         # best line (measured by variance)
@@ -181,7 +173,7 @@ class imageProc:
                         # location of the window which led to this line
                         if linesROIs[peaksNegLine[bestLine]] != [0]:
                             windowLocations[lidx,
-                                                 :] = linesROIs[peaksNegLine[bestLine]]
+                            :] = linesROIs[peaksNegLine[bestLine]]
                             lidx += 1
             except:
 
@@ -203,11 +195,11 @@ class imageProc:
         else:
             qualifiedLines = []
             windowLocations = []
-        
+
         qualifiedLines = qualifiedLines[~np.all(qualifiedLines == 0, axis=1)]
         windowLocations = windowLocations[~np.all(windowLocations == 0, axis=1)]
 
-        return qualifiedLines,  windowLocations
+        return qualifiedLines, windowLocations
 
     def findLinesInImage(self):
         """function to get lines at given window locations 
@@ -241,9 +233,10 @@ class imageProc:
             for ptIdx in range(self.numPlantsInScene):
                 # checking #points in upper/lower half of the image
                 self.checkPlantsLocTB(self.plantCenters2D[:, ptIdx])
-                
+
                 # if plant center is inside tracking box
-                if self.rowTrackingBoxes[boxIdx].contains(Point(self.plantCenters2D[0, ptIdx], self.plantCenters2D[1, ptIdx])):
+                if self.rowTrackingBoxes[boxIdx].contains(
+                        Point(self.plantCenters2D[0, ptIdx], self.plantCenters2D[1, ptIdx])):
                     plantsInCropRow.append(self.plantCenters2D[:, ptIdx])
 
             if len(plantsInCropRow) >= 2:
@@ -268,7 +261,8 @@ class imageProc:
         # if the feature extractor is initalized, adjust the window
         # size with the variance of the line fit
         if self.isInitialized and angleVariance is not None:
-            self.trackerParams["trackingBoxWidth"] = max(3*angleVariance, self.trackerParams["trackingBoxWidth"])
+            self.trackerParams["trackingBoxWidth"] = max(3 * angleVariance,
+                                                         self.trackerParams["trackingBoxWidth"])
 
         # delete zero rows from line parameters
         lines = lines[~np.all(lines == 0, axis=1)]
@@ -279,27 +273,33 @@ class imageProc:
 
     def updateTrackingBoxes(self, boxID=0, lineIntersection=None):
 
-        if not self.isInitialized and lineIntersection==None:
+        if not self.isInitialized and lineIntersection == None:
             # initial tracking Boxes 
             for i in range(len(self.scanFootSteps)):
                 # window is centered around self.scanFootSteps[i]
                 boxBL_x = self.scanFootSteps[i]
                 boxBR_x = self.scanFootSteps[i] + self.trackerParams["trackingBoxWidth"]
-                boxTL_x = int(boxBL_x - self.trackerParams["trackingBoxWidth"]/2 * self.trackerParams["sacleRatio"])
-                boxTR_x = int(boxTL_x + self.trackerParams["trackingBoxWidth"] * self.trackerParams["sacleRatio"])
+                boxTL_x = int(
+                    boxBL_x - self.trackerParams["trackingBoxWidth"] / 2 * self.trackerParams[
+                        "sacleRatio"])
+                boxTR_x = int(
+                    boxTL_x + self.trackerParams["trackingBoxWidth"] * self.trackerParams[
+                        "sacleRatio"])
                 boxT_y = self.trackerParams["bottomOffset"]
                 boxB_y = self.imgHeight - self.trackerParams["topOffset"]
                 # store the corner points
                 self.rowTrackingBoxes.append(Polygon([(boxBR_x, boxB_y),
-                                                      (boxBL_x, boxB_y), 
+                                                      (boxBL_x, boxB_y),
                                                       (boxTL_x, boxT_y),
                                                       (boxTR_x, boxT_y)]))
         else:
             # window corner points are left and right of these
-            boxBL_x = int(lineIntersection[0] - self.trackerParams["trackingBoxWidth"]/2)
+            boxBL_x = int(lineIntersection[0] - self.trackerParams["trackingBoxWidth"] / 2)
             boxBR_x = int(boxBL_x + self.trackerParams["trackingBoxWidth"])
-            boxTL_x = int(lineIntersection[1] - self.trackerParams["trackingBoxWidth"]/2 * self.trackerParams["sacleRatio"])
-            boxTR_x = int(boxTL_x + self.trackerParams["trackingBoxWidth"] * self.trackerParams["sacleRatio"])
+            boxTL_x = int(lineIntersection[1] - self.trackerParams["trackingBoxWidth"] / 2 *
+                          self.trackerParams["sacleRatio"])
+            boxTR_x = int(boxTL_x + self.trackerParams["trackingBoxWidth"] * self.trackerParams[
+                "sacleRatio"])
             boxT_y = self.trackerParams["bottomOffset"]
             boxB_y = self.imgHeight - self.trackerParams["topOffset"]
             # store the corner points
@@ -314,10 +314,10 @@ class imageProc:
             return True
         else:
             self.lostCropRows[cropRowID] = 1
-            return False   
+            return False
 
     def checkPlantsLocTB(self, point):
-        if point[1] < self.imgHeight/2:
+        if point[1] < self.imgHeight / 2:
             self.pointsInTop += 1
         else:
             self.pointsInBottom += 1
@@ -338,7 +338,8 @@ class imageProc:
                 # the line parameters are the new tracked lines (for the next step)
                 self.CropRows = lines
                 # location is always the left side of the window
-                self.trackingBoxLoc = meanLinesInWindows - self.trackerParams["trackingBoxWidth"]/2
+                self.trackingBoxLoc = meanLinesInWindows - self.trackerParams[
+                    "trackingBoxWidth"] / 2
                 # average image intersections of all found lines
                 avgOfLines = np.mean(np.c_[lineIntersectImgUpDown(
                     self.CropRows[:, 1], self.CropRows[:, 0], self.imgHeight)], axis=0)
@@ -353,9 +354,11 @@ class imageProc:
                                                           self.trackerParams["bottomOffset"])]
                 # store start and end points of lines - mainly for plotting
                 self.allLineStart = np.c_[
-                    allLineIntersect[:, 0], self.imgHeight - self.trackerParams["bottomOffset"] * np.ones((len(self.CropRows), 1))]
+                    allLineIntersect[:, 0], self.imgHeight - self.trackerParams[
+                        "bottomOffset"] * np.ones((len(self.CropRows), 1))]
                 self.allLineEnd = np.c_[
-                    allLineIntersect[:, 1], self.trackerParams["topOffset"] * np.ones((len(self.CropRows), 1))]
+                    allLineIntersect[:, 1], self.trackerParams["topOffset"] * np.ones(
+                        (len(self.CropRows), 1))]
                 # main features
                 self.P = self.cameraToImage([avgOfLines[1], self.imgHeight])
                 self.ang = computeTheta(self.mainLine_up, self.mainLine_down)
@@ -366,7 +369,7 @@ class imageProc:
                 self.cropLaneFound = False
         else:
             print('Running rest()..')
-        
+
         if self.pointsInBottom == 0 and self.pointsInTop == 0:
             self.cropLaneFound = False
 
@@ -413,14 +416,14 @@ class imageProc:
         b = _img[:, :, 2]
 
         # calculate Excess Green Index and filter out negative values
-        greenIDX = 2*g - r - b
+        greenIDX = 2 * g - r - b
         greenIDX[greenIDX < 0] = 0
         greenIDX = greenIDX.astype('uint8')
 
         # Otsu's thresholding after gaussian smoothing
         blur = cv.GaussianBlur(greenIDX, (5, 5), 0)
         threshold, threshIMG = cv.threshold(
-            blur, 0, 255, cv.THRESH_BINARY+cv.THRESH_OTSU)
+            blur, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU)
 
         # dilation
         kernel = np.ones((10, 10), np.uint8)
@@ -452,8 +455,8 @@ class imageProc:
         Returns:
             _type_: point in image Fr
         """
-        P[0] = P[0] - self.imgWidth/2
-        P[1] = P[1] - self.imgHeight/2
+        P[0] = P[0] - self.imgWidth / 2
+        P[1] = P[1] - self.imgHeight / 2
         return P
 
     def drawGraphics(self):
@@ -469,8 +472,10 @@ class imageProc:
                             self.plantObjects2D, -1, (10, 50, 150), 3)
             for i in range(0, len(self.allLineStart)):
                 # helper lines
-                cv.line(self.graphicsImg, (int(self.allLineStart[i, 0]), int(self.allLineStart[i, 1])), (int(
-                    self.allLineEnd[i, 0]), int(self.allLineEnd[i, 1])), (0, 255, 0), thickness=1)
+                cv.line(self.graphicsImg,
+                        (int(self.allLineStart[i, 0]), int(self.allLineStart[i, 1])), (int(
+                        self.allLineEnd[i, 0]), int(self.allLineEnd[i, 1])), (0, 255, 0),
+                        thickness=1)
 
             for i in range(self.numOfCropRows):
                 int_coords = lambda x: np.array(x).round().astype(np.int32)
