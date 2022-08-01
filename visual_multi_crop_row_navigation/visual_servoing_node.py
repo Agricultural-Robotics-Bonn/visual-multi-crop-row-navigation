@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 # Copyright 2022 Agricultural-Robotics-Bonn
@@ -40,51 +40,43 @@ from future.builtins import input
 from geometry_msgs.msg import Twist
 import image_geometry
 import message_filters
-import rclpy
-import rospy
+from rclpy.node import Node
+from rclpy.time import Time
 from sensor_msgs.msg import CameraInfo, Image
-import tf2_geometry_msgs
 
-import camera as cam
-import controller as visualServoingCtl
-from featureMatching import *
-import imageProc as imc
+import tf2_geometry_msgs.tf2_geometry_msgs
+import visual_multi_crop_row_navigation.camera as cam
+import visual_multi_crop_row_navigation.controller as visualServoingCtl
+from visual_multi_crop_row_navigation.featureMatching import *
+import visual_multi_crop_row_navigation.imageProc as imc
 
 
-class VSNodeHandler:
+# import tf2_geometry_msgs
+
+
+class VisualServoingNode(Node):
 
     def __init__(self):
+        super().__init__('vs_navigator')
+        self.get_logger().info('#[VS] Visual_servoing navigator node running ...')
         # cv bridge
         self.bridge = CvBridge()
         self.queue_size = 1
 
         # subscribed Topics (Images of front and back camera)
-        self.frontColor_topic = rospy.get_param('frontColor_topic')
-        self.frontDepth_topic = rospy.get_param('frontDepth_topic')
-        self.frontCameraInfo_topic = rospy.get_param('frontCameraInfo_topic')
-
-        self.frontColor_sub = message_filters.Subscriber(
-            self.frontColor_topic, Image, queue_size=self.queue_size)
-        self.frontDepth_sub = message_filters.Subscriber(
-            self.frontDepth_topic, Image, queue_size=self.queue_size)
-        self.frontCameraInfo_sub = message_filters.Subscriber(
-            self.frontCameraInfo_topic, CameraInfo, queue_size=self.queue_size)
+        self.frontColor_sub = message_filters.Subscriber(self, Image, 'front/color')
+        self.frontDepth_sub = message_filters.Subscriber(self, Image, 'front/depth')
+        self.frontCameraInfo_sub = message_filters.Subscriber(self, CameraInfo,
+                                                              'front/camera_info')
 
         self.ts = message_filters.ApproximateTimeSynchronizer(
             [self.frontColor_sub, self.frontDepth_sub, self.frontCameraInfo_sub],
             queue_size=self.queue_size, slop=0.5)
         self.ts.registerCallback(self.frontSyncCallback)
 
-        self.backColor_topic = rospy.get_param('backColor_topic')
-        self.backDepth_topic = rospy.get_param('backDepth_topic')
-        self.backCameraInfo_topic = rospy.get_param('backCameraInfo_topic')
-
-        self.backColor_sub = message_filters.Subscriber(
-            self.backColor_topic, Image, queue_size=self.queue_size)
-        self.backDepth_sub = message_filters.Subscriber(
-            self.backDepth_topic, Image, queue_size=self.queue_size)
-        self.backCameraInfo_sub = message_filters.Subscriber(
-            self.backCameraInfo_topic, CameraInfo, queue_size=self.queue_size)
+        self.backColor_sub = message_filters.Subscriber(self, Image, 'back/color')
+        self.backDepth_sub = message_filters.Subscriber(self, Image, 'back/depth')
+        self.backCameraInfo_sub = message_filters.Subscriber(self, CameraInfo, 'back/camera_info')
 
         self.ts = message_filters.ApproximateTimeSynchronizer(
             [self.backColor_sub, self.backDepth_sub, self.backCameraInfo_sub],
@@ -92,21 +84,54 @@ class VSNodeHandler:
         self.ts.registerCallback(self.backSyncCallback)
 
         # Initialize ros publisher, ros subscriber, topics we publish
-        self.graphic_pub = rospy.Publisher('vs_nav/graphic', Image, queue_size=1)
-        self.mask_pub = rospy.Publisher('vs_nav/mask', Image, queue_size=1)
-        self.exg_pub = rospy.Publisher('vs_nav/ExG', Image, queue_size=1)
+        self.graphic_pub = self.create_publisher(Image, 'vs_nav/graphic', qos_profile=1)
+        self.mask_pub = self.create_publisher(Image, 'vs_nav/mask', qos_profile=1)
+        self.exg_pub = self.create_publisher(Image, 'vs_nav/ExG', qos_profile=1)
 
-        cmd_vel_topic = rospy.get_param('cmd_vel_topic')
-        self.velocity_pub = rospy.Publisher(cmd_vel_topic, Twist, queue_size=1)
+        self.velocity_pub = self.create_publisher(Twist, 'cmd_vel', qos_profile=1)
+
+        # declare all parameters and their defaults
+        self.declare_parameters('', [
+            ('navigationMode', 1),
+            ('stationaryDebug', False),
+            ('scanSteps', 5),
+            ('scanEndPoint', 1280),
+            ('scanStartPoint', 0),
+            ('scanWindowWidth', 128),
+            ('enable_roi', True),
+            ('p1', [0, 0]),
+            ('p2', [350, 0]),
+            ('p3', [10, 720]),
+            ('p4', [0, 720]),
+            ('p5', [830, 0]),
+            ('p6', [1280, 0]),
+            ('p7', [1280, 720]),
+            ('p8', [1270, 720]),
+            ('imgResizeRatio', 100),
+            ('minContourArea', 10),
+            ('linesToPass', 1),
+            ('minKeypointNum', 10),
+            ('maxMatchingDifference', 100),
+            ('minMatchingDifference', 0),
+            ('scaleRatio', 0.4),
+            ('topOffset', 0),
+            ('bottomOffset', 0),
+            ('trackingBoxWidth', 200),
+            ('omegaScaler', 0.1),
+            ('maxOmega', 0.05),
+            ('minOmega', 0.01),
+            ('maxLinearVel', 0.5),
+            ('minLinearVel', 0.01),
+        ])
 
         # settings
         # Mode 1: Driving forward with front camera (starting mode)
         # Mode 2: Driving forward with back camera
         # Mode 3: Driving backwards with back camera
         # Mode 4: Driving backwards with front camera
-        self.navigationMode = rospy.get_param('navigationMode')
-        # debug mode without publishing velocities 
-        self.stationaryDebug = rospy.get_param('stationaryDebug')
+        self.navigationMode = self.get_parameter('navigationMode').value
+        # debug mode without publishing velocities
+        self.stationaryDebug = self.get_parameter('stationaryDebug').value
         # rotation direction FLAG
         self.rotationDir = 1
         # direction of motion 1: forward, -1:backward
@@ -123,49 +148,50 @@ class VSNodeHandler:
         self.omegaBuffer = list()
 
         self.scannerParams = {
-            "scanSteps": rospy.get_param('scanSteps'),
-            "scanEndPoint": rospy.get_param('scanEndPoint'),
-            "scanStartPoint": rospy.get_param('scanStartPoint'),
-            "scanWindowWidth": rospy.get_param('scanWindowWidth')
+            'scanSteps': self.get_parameter('scanSteps').value,
+            'scanEndPoint': self.get_parameter('scanEndPoint').value,
+            'scanStartPoint': self.get_parameter('scanStartPoint').value,
+            'scanWindowWidth': self.get_parameter('scanWindowWidth').value
         }
-        #  in case of using bigger size image size, we suggest to set ROI 
+
+        #  in case of using bigger size image size, we suggest to set ROI
         self.rioParams = {
-            "enable_roi": rospy.get_param('enable_roi'),
-            "p1": rospy.get_param('p1'),
-            "p2": rospy.get_param('p2'),
-            "p3": rospy.get_param('p3'),
-            "p4": rospy.get_param('p4'),
-            "p5": rospy.get_param('p5'),
-            "p6": rospy.get_param('p6'),
-            "p7": rospy.get_param('p7'),
-            "p8": rospy.get_param('p8')
+            'enable_roi': self.get_parameter('enable_roi').value,
+            'p1': self.get_parameter('p1').value,
+            'p2': self.get_parameter('p2').value,
+            'p3': self.get_parameter('p3').value,
+            'p4': self.get_parameter('p4').value,
+            'p5': self.get_parameter('p5').value,
+            'p6': self.get_parameter('p6').value,
+            'p7': self.get_parameter('p7').value,
+            'p8': self.get_parameter('p8').value
         }
 
         self.contourParams = {
-            "imgResizeRatio": rospy.get_param('imgResizeRatio'),
-            "minContourArea": rospy.get_param('minContourArea'),
+            'imgResizeRatio': self.get_parameter('imgResizeRatio').value,
+            'minContourArea': self.get_parameter('minContourArea').value,
         }
 
         self.featureParams = {
-            "linesToPass": rospy.get_param('linesToPass'),
-            "minKeypointNum": rospy.get_param('minKeypointNum'),
-            "maxMatchingDifference": rospy.get_param('maxMatchingDifference'),
-            "minMatchingDifference": rospy.get_param('minMatchingDifference'),
+            'linesToPass': self.get_parameter('linesToPass').value,
+            'minKeypointNum': self.get_parameter('minKeypointNum').value,
+            'maxMatchingDifference': self.get_parameter('maxMatchingDifference').value,
+            'minMatchingDifference': self.get_parameter('minMatchingDifference').value,
         }
 
         self.trackerParams = {
-            "sacleRatio": rospy.get_param('sacleRatio'),
-            "topOffset": rospy.get_param('topOffset'),
-            "bottomOffset": rospy.get_param('bottomOffset'),
-            "trackingBoxWidth": rospy.get_param('trackingBoxWidth'),
+            "scaleRatio": self.get_parameter('scaleRatio').value,
+            "topOffset": self.get_parameter('topOffset').value,
+            "bottomOffset": self.get_parameter('bottomOffset').value,
+            "trackingBoxWidth": self.get_parameter('trackingBoxWidth').value,
         }
 
         # speed limits
-        self.omegaScaler = rospy.get_param('omegaScaler')
-        self.maxOmega = rospy.get_param('maxOmega')
-        self.minOmega = rospy.get_param('minOmega')
-        self.maxLinearVel = rospy.get_param('maxLinearVel')
-        self.minLinearVel = rospy.get_param('minLinearVel')
+        self.omegaScaler = self.get_parameter('omegaScaler').value
+        self.maxOmega = self.get_parameter('maxOmega').value
+        self.minOmega = self.get_parameter('minOmega').value
+        self.maxLinearVel = self.get_parameter('maxLinearVel').value
+        self.minLinearVel = self.get_parameter('minLinearVel').value
 
         # images
         self.frontImg = None
@@ -185,12 +211,12 @@ class VSNodeHandler:
                                             self.trackerParams)
 
         self.cameraModel = image_geometry.PinholeCameraModel()
-        rospy.loginfo('Detection Camera initialised..')
+        self.get_logger().info('Detection Camera initialised..')
         print('')
 
         self.featureMatcher = featureMatching(self.featureParams)
 
-        rospy.loginfo("#[VS] navigator initialied ... ")
+        self.get_logger().info("#[VS] navigator initialied ... ")
 
     # main function to guide the robot through crop rows
     def navigate(self):
@@ -202,7 +228,7 @@ class VSNodeHandler:
         # If the feature extractor is not initialized yet, this has to be done
         if not self.imageProcessor.findCropLane(primaryRGB, primaryDepth, mode='RGB-D'):
             # this is only False if the initialization in 'setImage' was unsuccessful
-            rospy.logwarn("The initialization was unsuccessful!! ")
+            self.get_logger().warn("The initialization was unsuccessful!! ")
         else:
             print("cropLaneFound", self.imageProcessor.cropLaneFound, "cropRowEnd",
                   self.imageProcessor.cropRowEnd)
@@ -282,11 +308,11 @@ class VSNodeHandler:
         self.graphic_pub.publish(graphic_img)
         # publish predicted Mask
         mask_msg = CvBridge().cv2_to_imgmsg(self.imageProcessor.mask)
-        mask_msg.header.stamp = rospy.Time.now()
+        mask_msg.header.stamp = self.get_clock().now().to_msg()
         self.mask_pub.publish(mask_msg)
         # publish Exg image 
         exg_msg = CvBridge().cv2_to_imgmsg(self.imageProcessor.greenIDX)
-        exg_msg.header.stamp = rospy.Time.now()
+        exg_msg.header.stamp = self.get_clock().now().to_msg()
         self.exg_pub.publish(exg_msg)
 
     def setRobotVelocities(self, x, y, omega):
@@ -530,13 +556,15 @@ class VSNodeHandler:
         targetList = []
         try:
             cameraToOdomTF = self.tfBuffer.lookup_transform(
-                frameName, self.cameraModel.tfFrame(), rospy.Time(0))
+                frameName, self.cameraModel.tfFrame(), Time(0))
         except:
-            rospy.logerr(
+            self.get_logger().error(
                 "lookup_transform " + frameName + " to " + self.cameraModel.tfFrame() + " failed !!!")
 
         if not cameraToOdomTF == None:
             for i in range(len(targets)):
+                # until this PR https://github.com/ros2/geometry2/pull/533 is merged,
+                # we have to manually clone this package in the same workspace
                 stem = tf2_geometry_msgs.do_transform_pose(targets[i], cameraToOdomTF)
                 targetList.append(stem)
 

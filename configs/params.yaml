@@ -66,7 +66,7 @@ scanWindowWidth: 128
 trackingBoxWidth: 200
 topOffset: 0
 bottomOffset: 0
-sacleRatio: 0.4
+scaleRatio: 0.4
 # for dividing bushy rows
 maxCoutourHeight: 120
 #  in case of using bigger size image size, we suggest to set ROI 
