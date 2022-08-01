@@ -1,5 +1,6 @@
 <?xml version="1.0"?>
-<package format="2">
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
   <name>visual_multi_crop_row_navigation</name>
   <version>0.0.1</version>
   <description>phenobot multicrop row visual servoing navigation</description>
@@ -10,22 +11,25 @@
   <!-- One license tag required, multiple allowed, one license per tag -->
   <!-- Commonly used license strings: -->
   <!--   BSD, MIT, Boost Software License, GPLv2, GPLv3, LGPLv2.1, LGPLv3 -->
-  <license>MIT</license>
+  <license>BSD</license>
 
-  <buildtool_depend>catkin</buildtool_depend>
-  <build_depend>roscpp</build_depend>
-  <build_depend>rospy</build_depend>
-  <build_depend>std_msgs</build_depend>
-  <build_export_depend>roscpp</build_export_depend>
-  <build_export_depend>rospy</build_export_depend>
-  <build_export_depend>std_msgs</build_export_depend>
-  <exec_depend>roscpp</exec_depend>
-  <exec_depend>rospy</exec_depend>
-  <exec_depend>std_msgs</exec_depend>
+
+  <depend>rclpy</depend>
+  <depend>std_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>message_filters</depend>
+  <depend>tf2_geometry_msgs</depend>
+  <depend>image_geometry</depend>
+  <depend>python-shapely</depend>
+  <depend>python-opencv</depend>
+  <depend>python3-numpy</depend>
+  <depend>cv_bridge</depend>
 
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>
+    <build_type>ament_python</build_type>
     <!-- Other tools can request additional information be placed here -->
 
   </export>
