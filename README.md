@@ -29,7 +29,7 @@ May have success adapting the below for https://developer.download.nvidia.com/co
 ### Dependencies
 
 - Ubuntu 22.04 & [ROS2 Humble](https://github.com/linorobot/ros2me)
-- sudo apt-get install python3-shapely python3-opencv python3-pip
+- sudo apt-get install python3-shapely python3-opencv python3-pip ros-humble-usb-cam
 - pip3 install future scipy 
 
 
