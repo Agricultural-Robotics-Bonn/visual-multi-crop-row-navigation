@@ -11,7 +11,7 @@
         <push-ros-namespace namespace="phenobot"/>
         <node name="vs_navigation" pkg="visual_multi_crop_row_navigation" exec="vs_navigation"
               output="screen">
-            <param from="$(find-pkg-share visual_multi_crop_row_navigation)/config/params.yaml"/>
+            <param from="$(find-pkg-share visual_multi_crop_row_navigation)/configs/params.yaml"/>
         </node>
     </group>
 </launch>
