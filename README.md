@@ -1,5 +1,5 @@
        
-# Visual Multi Crop Row Navigation in Arable Farming Fields      
+# Visual Multi Crop Row Navigation in Arable Farming Fields (ROS2)    
 
 A work presented in IROS 2022 - Kyoto, Japan
 
@@ -66,7 +66,7 @@ launch main script:
     ros2 launch visual_multi_crop_row_navigation vs_navigation.launch.xml
     
 	    
-## Multi-Crop Row Navigation Dataset
+## Multi-Crop Row Navigation Datasets
 
 used for analyze the robustness of crop-row detection
 technique as a quantitative evaluate. For each of the
@@ -89,6 +89,8 @@ image.
 </div>
 
 for accessing dataset please sned an email to: Alireza.ahmadi@uni-bonn.de 
+
+Alternatively this may be useful: https://github.com/Hamza-MAILKA/Crop_Row_Dataset
 
 ## Citation 
 if you use this project in your recent works please refernce to it by:
