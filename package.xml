@@ -13,11 +13,9 @@
   <!--   BSD, MIT, Boost Software License, GPLv2, GPLv3, LGPLv2.1, LGPLv3 -->
   <license>MIT</license>
 
-  <buildtool_depend>ament_cmake</buildtool_depend>
 
   <depend>rclpy</depend>
   <depend>std_msgs</depend>
-  <depend>python-shapely</depend>
   <depend>python-shapely</depend>
   <depend>python-opencv</depend>
   <depend>python3-numpy</depend>
@@ -25,6 +23,7 @@
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>
+    <build_type>ament_python</build_type>
     <!-- Other tools can request additional information be placed here -->
 
   </export>
