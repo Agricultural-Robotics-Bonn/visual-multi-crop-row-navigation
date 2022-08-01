@@ -7,7 +7,7 @@ from future.builtins import input
 import rospy
 import math
 import cv2 as cv
-import Camera as cam
+import camera as cam
 import imageProc as imc
 import controller as visualServoingCtl
 import numpy as np
