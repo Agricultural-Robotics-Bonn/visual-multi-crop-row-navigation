@@ -33,7 +33,7 @@ import itertools
 import cv2 as cv
 from shapely.geometry import Point
 
-from movingVariance import *
+from .movingVariance import *
 
 
 class featureMatching:

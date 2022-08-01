@@ -33,7 +33,7 @@
 
 import rclpy
 
-from visual_servoing_node import VisualServoingNode
+from .visual_servoing_node import VisualServoingNode
 
 
 def main():

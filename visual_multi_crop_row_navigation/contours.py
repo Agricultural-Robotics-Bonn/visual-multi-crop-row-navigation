@@ -30,7 +30,7 @@
 
 import cv2 as cv
 
-from geometric import *
+from .geometric import *
 
 
 def getContourCenter(contours):

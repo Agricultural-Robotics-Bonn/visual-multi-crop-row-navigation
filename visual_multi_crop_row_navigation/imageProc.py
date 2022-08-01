@@ -34,10 +34,10 @@ from __future__ import division, print_function
 
 from shapely.geometry.polygon import Polygon
 
-from contours import *
-from featureMatching import *
-from geometric import *
-from movingVariance import *
+from .contours import *
+from .featureMatching import *
+from .geometric import *
+from .movingVariance import *
 
 
 class imageProc:
@@ -312,10 +312,10 @@ class imageProc:
                 boxBR_x = self.scanFootSteps[i] + self.trackerParams["trackingBoxWidth"]
                 boxTL_x = int(
                     boxBL_x - self.trackerParams["trackingBoxWidth"] / 2 * self.trackerParams[
-                        "sacleRatio"])
+                        "scaleRatio"])
                 boxTR_x = int(
                     boxTL_x + self.trackerParams["trackingBoxWidth"] * self.trackerParams[
-                        "sacleRatio"])
+                        "scaleRatio"])
                 boxT_y = self.trackerParams["bottomOffset"]
                 boxB_y = self.imgHeight - self.trackerParams["topOffset"]
                 # store the corner points
@@ -328,9 +328,9 @@ class imageProc:
             boxBL_x = int(lineIntersection[0] - self.trackerParams["trackingBoxWidth"] / 2)
             boxBR_x = int(boxBL_x + self.trackerParams["trackingBoxWidth"])
             boxTL_x = int(lineIntersection[1] - self.trackerParams["trackingBoxWidth"] / 2 *
-                          self.trackerParams["sacleRatio"])
+                          self.trackerParams["scaleRatio"])
             boxTR_x = int(boxTL_x + self.trackerParams["trackingBoxWidth"] * self.trackerParams[
-                "sacleRatio"])
+                "scaleRatio"])
             boxT_y = self.trackerParams["bottomOffset"]
             boxB_y = self.imgHeight - self.trackerParams["topOffset"]
             # store the corner points
