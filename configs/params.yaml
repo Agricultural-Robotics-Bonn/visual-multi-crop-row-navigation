@@ -1,97 +1,99 @@
-# ROS node
+/**:
+  ros__parameters:
+    # ROS node
 
-# sub
-# simulation
-frontColor_topic: '/rs_nav_front/camera/color/image_raw'
-frontDepth_topic: '/rs_nav_front/camera/depth/image_raw'
-frontCameraInfo_topic: '/rs_nav_front/camera/color/camera_info'
-backColor_topic: '/rs_nav_front/camera/color/image_raw'
-backDepth_topic: '/rs_nav_front/camera/depth/image_raw'
-backCameraInfo_topic: '/rs_nav_front/camera/color/camera_info'
+    # sub
+    # simulation
+    frontColor_topic: '/rs_nav_front/camera/color/image_raw'
+    frontDepth_topic: '/rs_nav_front/camera/depth/image_raw'
+    frontCameraInfo_topic: '/rs_nav_front/camera/color/camera_info'
+    backColor_topic: '/rs_nav_front/camera/color/image_raw'
+    backDepth_topic: '/rs_nav_front/camera/depth/image_raw'
+    backCameraInfo_topic: '/rs_nav_front/camera/color/camera_info'
 
-# thorvald
-# frontColor_topic: '/rs_nav_front/color/image_raw'
-# frontDepth_topic: '/rs_nav_front/aligned_depth_to_color/image_raw'
-# frontCameraInfo_topic: '/rs_nav_front/color/camera_info'
-# backColor_topic: '/rs_nav_back/color/image_raw'
-# backDepth_topic: '/rs_nav_back/aligned_depth_to_color/image_raw'
-# backCameraInfo_topic: '/rs_nav_back/color/camera_info'
-# in experiments of the paper we use neither odom nor IMU !
-# using Odomtery 
-useOdom: False
-odomTopic: /odometry/base_raw
-# use IMU for maintaining orinetation 
-useImu: False
-imuTopic: /imu/orientation
-#pub
-# simulation
-cmd_vel_topic: /phenobot/twist_mux/cmd_vel
-# thorvlad
-# cmd_vel_topic: /twist_mux/cmd_vel
-#  node params
-update rate: 30
-queue_size: 5
-# processed image size scale
-imgResizeRatio: 100
-# for filtering contours
-minContourArea: 10
-# stationary debug mode, (without publishing velocity)
-stationaryDebug: False
-# run time params
-# Mode 1: Driving forward with front camera (starting mode)
-# Mode 2: Driving forward with back camera
-# Mode 3: Driving backwards with back camera
-# Mode 4: Driving backwards with front camera
-navigationMode: 1
-# angular velocity scaler
-maxOmega: 0.05 
-minOmega: 0.01 
-omegaScaler: 0.1
-maxLinearVel: 0.5 
-minLinearVel: 0.01
-# Parameter for setting the number of rows to pass in one switch
-linesToPass: 1
-# Max Offset of the Window for extracting the turn features
-maxMatchingDifference: 100
-# Min Offset of the Window for extracting the turn features
-minMatchingDifference: 0
-# Threshold for keypoints
-minKeypointNum: 10
-# scanner window params
-scanSteps: 5
-scanStartPoint: 0
-scanEndPoint: 1280
-scanWindowWidth: 128
-# tracker params
-trackingBoxWidth: 200
-topOffset: 0
-bottomOffset: 0
-scaleRatio: 0.4
-# for dividing bushy rows
-maxCoutourHeight: 120
-#  in case of using bigger size image size, we suggest to set ROI 
-enable_roi: True
-p1: 
- - 0
- - 0
-p2:
- - 350
- - 0
-p3:
- - 10
- - 720
-p4:
- - 0
- - 720
-p5: 
- - 830
- - 0
-p6:
- - 1280
- - 0
-p7:
- - 1280
- - 720
-p8: 
- - 1270
- - 720
+    # thorvald
+    # frontColor_topic: '/rs_nav_front/color/image_raw'
+    # frontDepth_topic: '/rs_nav_front/aligned_depth_to_color/image_raw'
+    # frontCameraInfo_topic: '/rs_nav_front/color/camera_info'
+    # backColor_topic: '/rs_nav_back/color/image_raw'
+    # backDepth_topic: '/rs_nav_back/aligned_depth_to_color/image_raw'
+    # backCameraInfo_topic: '/rs_nav_back/color/camera_info'
+    # in experiments of the paper we use neither odom nor IMU !
+    # using Odomtery 
+    useOdom: False
+    odomTopic: /odometry/base_raw
+    # use IMU for maintaining orinetation 
+    useImu: False
+    imuTopic: /imu/orientation
+    #pub
+    # simulation
+    cmd_vel_topic: /phenobot/twist_mux/cmd_vel
+    # thorvlad
+    # cmd_vel_topic: /twist_mux/cmd_vel
+    #  node params
+    update rate: 30
+    queue_size: 5
+    # processed image size scale
+    imgResizeRatio: 100
+    # for filtering contours
+    minContourArea: 10
+    # stationary debug mode, (without publishing velocity)
+    stationaryDebug: False
+    # run time params
+    # Mode 1: Driving forward with front camera (starting mode)
+    # Mode 2: Driving forward with back camera
+    # Mode 3: Driving backwards with back camera
+    # Mode 4: Driving backwards with front camera
+    navigationMode: 1
+    # angular velocity scaler
+    maxOmega: 0.05 
+    minOmega: 0.01 
+    omegaScaler: 0.1
+    maxLinearVel: 0.5 
+    minLinearVel: 0.01
+    # Parameter for setting the number of rows to pass in one switch
+    linesToPass: 1
+    # Max Offset of the Window for extracting the turn features
+    maxMatchingDifference: 100
+    # Min Offset of the Window for extracting the turn features
+    minMatchingDifference: 0
+    # Threshold for keypoints
+    minKeypointNum: 10
+    # scanner window params
+    scanSteps: 5
+    scanStartPoint: 0
+    scanEndPoint: 1280
+    scanWindowWidth: 128
+    # tracker params
+    trackingBoxWidth: 200
+    topOffset: 0
+    bottomOffset: 0
+    scaleRatio: 0.4
+    # for dividing bushy rows
+    maxCoutourHeight: 120
+    #  in case of using bigger size image size, we suggest to set ROI 
+    enable_roi: True
+    p1: 
+    - 0
+    - 0
+    p2:
+    - 350
+    - 0
+    p3:
+    - 10
+    - 720
+    p4:
+    - 0
+    - 720
+    p5: 
+    - 830
+    - 0
+    p6:
+    - 1280
+    - 0
+    p7:
+    - 1280
+    - 720
+    p8: 
+    - 1270
+    - 720
