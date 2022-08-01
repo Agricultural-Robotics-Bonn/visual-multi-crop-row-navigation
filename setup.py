@@ -20,7 +20,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-
+            'vs_navigation = visual_multi_crop_row_navigation.main:main'
         ],
     }
 )

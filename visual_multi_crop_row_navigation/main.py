@@ -31,19 +31,26 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 
-import rospy
+import rclpy
 
-from vs_nodeHandler import vs_nodeHandler
+from visual_servoing_node import VisualServoingNode
+
+
+def main():
+    # Initialize rclpy
+    rclpy.init()
+
+    # Create visual servoing node
+    node = VisualServoingNode()
+
+    # Spin the node until Ctrl-c is called
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        node.get_logger().warn("#[VS] Shutting down Phenobot Controller")
+    finally:
+        rclpy.shutdown()
+
 
 if __name__ == '__main__':
-    #  initializing vs navigator node 
-    rospy.init_node('vs_navigator', anonymous=False)
-    rospy.loginfo("#[VS] Visual_servoing navigator node running ...")
-
-    # instantiating navigator class
-    nodeHandler = vs_nodeHandler()
-
-    try:
-        rospy.spin()
-    except KeyboardInterrupt:
-        rospy.logwarn("#[VS] Shutting down Phenobot Controller")
+    main()

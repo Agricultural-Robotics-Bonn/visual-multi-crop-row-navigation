@@ -40,6 +40,7 @@ from future.builtins import input
 from geometry_msgs.msg import Twist
 import image_geometry
 import message_filters
+import rclpy
 import rospy
 from sensor_msgs.msg import CameraInfo, Image
 import tf2_geometry_msgs
@@ -50,7 +51,7 @@ from featureMatching import *
 import imageProc as imc
 
 
-class vs_nodeHandler:
+class VSNodeHandler:
 
     def __init__(self):
         # cv bridge
