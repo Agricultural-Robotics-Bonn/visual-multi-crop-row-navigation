@@ -11,14 +11,20 @@
   <!-- One license tag required, multiple allowed, one license per tag -->
   <!-- Commonly used license strings: -->
   <!--   BSD, MIT, Boost Software License, GPLv2, GPLv3, LGPLv2.1, LGPLv3 -->
-  <license>MIT</license>
+  <license>BSD</license>
 
 
   <depend>rclpy</depend>
   <depend>std_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>message_filters</depend>
+  <depend>tf2_geometry_msgs</depend>
+  <depend>image_geometry</depend>
   <depend>python-shapely</depend>
   <depend>python-opencv</depend>
   <depend>python3-numpy</depend>
+  <depend>cv_bridge</depend>
 
 
   <!-- The export tag contains other, unspecified, tags -->
