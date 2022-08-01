@@ -28,8 +28,9 @@ May have success adapting the below for https://developer.download.nvidia.com/co
 
 ### Dependencies
 
-- [ROS2 Humble](https://github.com/linorobot/ros2me)
-- pip3 install opencv-python opencv-contrib-python future scipy python-shapely
+- Ubuntu 22.04 & [ROS2 Humble](https://github.com/linorobot/ros2me)
+- sudo apt-get install python3-shapely python3-opencv python3-pip
+- pip3 install future scipy 
 
 
 Install tf2_geometry_msgs from source (because we need the `do_transform_pose` which is going 
