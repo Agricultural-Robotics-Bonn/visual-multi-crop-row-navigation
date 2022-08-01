@@ -43,7 +43,8 @@ to be merged in this [PR](https://github.com/ros2/geometry2/pull/533))
     cd my_ws/src/
     git clone https://github.com/ros2/geometry2.git
     cd geometry2
-    git checkout mergify/bp/galactic/pr-509
+    git fetch origin pull/533/head:pr-533
+    git checkout pr-533
 
 ### Build and run
 
