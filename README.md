@@ -71,6 +71,11 @@ source setup file:
 launch main script:
 
     ros2 launch visual_multi_crop_row_navigation vs_navigation.launch.xml
+ 
+Camera check & launch
+     v4l2-ctl -d /dev/video0 --list-formats-ext
+     sudo nano /opt/ros/humble/share/usb_cam/config/params.yaml
+     ros2 launch usb_cam demo_launch.py
     
 	    
 ## Multi-Crop Row Navigation Datasets
