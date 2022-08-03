@@ -42,15 +42,13 @@ to be merged in this [PR](https://github.com/ros2/geometry2/pull/533))
     git fetch origin pull/533/head:pr-533
     git checkout pr-533
     
-Check ROS dependencies
-    
-    rosdep install --from-paths src --ignore-src -r -y
-
-    
 ### Install
 
     git clone --branch ROS2 https://github.com/Agroecology-Lab/visual-multi-crop-row-navigation.git
     
+Check ROS dependencies
+    
+    rosdep install --from-paths src --ignore-src -r -y    
 
 ### Build and run
 
