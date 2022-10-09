@@ -63,8 +63,7 @@ clean:
     colcon build
     
 source setup file:
-
-    source ./install/setup.bash
+    source /opt/ros/humble/setup.bash
     
     
 launch main script:
