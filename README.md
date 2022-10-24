@@ -52,8 +52,8 @@ source setup file:
     
 launch main script:
 
-    roslaunch visual_multi_crop_row_navigation vs_navigation.py
-    
+    roslaunch visual_multi_crop_row_navigation vs_navigation.launch
+
 
 ### Dependencies:
 - Thorvald Platfrom package [Thorvald Saga](https://www.nmbu.no/en/faculty/realtek/research/groups/roboticsandcontrol/thorvaldinstall/node/34632)
