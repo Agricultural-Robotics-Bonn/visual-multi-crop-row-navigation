@@ -2,12 +2,12 @@
 
 # sub
 # simulation
-frontColor_topic: '/rs_nav_front/camera/color/image_raw'
-frontDepth_topic: '/rs_nav_front/camera/depth/image_raw'
-frontCameraInfo_topic: '/rs_nav_front/camera/color/camera_info'
-backColor_topic: '/rs_nav_front/camera/color/image_raw'
-backDepth_topic: '/rs_nav_front/camera/depth/image_raw'
-backCameraInfo_topic: '/rs_nav_front/camera/color/camera_info'
+frontColor_topic: '/phenobot/rs_nav_front/color/image_raw'
+frontDepth_topic: '/phenobot/rs_nav_front/depth/image_rect_raw'
+frontCameraInfo_topic: '/phenobot/rs_nav_front/color/camera_info'
+backColor_topic: '/phenobot/rs_nav_back/color/image_raw'
+backDepth_topic: '/phenobot/rs_nav_back/depth/image_rect_raw'
+backCameraInfo_topic: '/phenobot/rs_nav_back/color/camera_info'
 
 # thorvald
 # frontColor_topic: '/rs_nav_front/color/image_raw'

@@ -135,7 +135,7 @@ class featureMatching:
         Returns:
             _type_: _description_
         """
-        print("#[INF] detect Tracking Features")
+        print("[bold blue]#[INF][/] detect Tracking Features")
         # Initiate SIFT detector
         sift = cv.xfeatures2d.SIFT_create()
         # get sift key points

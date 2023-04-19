@@ -1,4 +1,3 @@
-#!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 from __future__ import division
 from __future__ import print_function
@@ -189,11 +188,11 @@ class vs_nodeHandler:
                                                    self.imageProcessor.ang)
 
                 if not self.imageProcessor.cropRowEnd:
-                    print("#[INF] Following detected Lane ...")
+                    print("[bold blue]#[INF][/] Following detected Lane ...")
                     self.setRobotVelocities(ctlCommands[0], 0.0, ctlCommands[1])
 
                 elif self.imageProcessor.cropRowEnd:
-                    print("#[INF] End of Lane detected ...")
+                    print("[bold blue]#[INF][/] End of Lane detected ...")
                     
                     if self.isExitingLane():
                         self.updateNavigationStage()
@@ -205,7 +204,7 @@ class vs_nodeHandler:
                         self.switchCamera()
 
             elif self.isSwitchingLane() and not self.samplingDone:
-                print("#[INF] Sampling the Lane!!")
+                print("[bold blue]#[INF][/] Sampling the Lane!!")
                 self.stopRobot(2.0)
                 # Compute the features for the turning and stop the movement
                 self.featureMatcher.sampleCropRowFeatures(self.navigationMode,
@@ -228,7 +227,7 @@ class vs_nodeHandler:
                     print("following new Lane !!")
                     # the turn is completed and the new lines to follow are computed
                     self.switchDirection()
-                    print("#[INF] Turning Mode disabled, Entering next lane")
+                    print("[bold blue]#[INF][/] Turning Mode disabled, Entering next lane")
                     self.updateNavigationStage()
                     self.imageProcessor.reset()
                     self.imageProcessor.isInitialized = False
@@ -237,11 +236,11 @@ class vs_nodeHandler:
                     # if the condition is not fulfilled the robot moves continouisly sidewards
                     self.setRobotVelocities(0.0, -0.05, 0.0)
                     # check Odometry for safty (not to drive so much!)
-                    print("#[INF] Side motion to find New Lane ...")
+                    print("[bold blue]#[INF][/] Side motion to find New Lane ...")
 
         self.publishImageTopics()
 
-        print("#[INF] m:", 
+        print("[bold blue]#[INF][/] m:", 
               self.navigationMode, 
               "p-cam:", "front" if self.primaryCamera else "back", 
               "vel-x,y,z",
@@ -379,8 +378,8 @@ class vs_nodeHandler:
         self.navigationMode += 1
         if self.navigationMode > 6:
             self.navigationMode = 1  
-        inputKey = input("#[INF] Press Enter to continue with mode:")
-        print("#[INF] Switched to mode ", self.navigationMode)
+        inputKey = input("[bold blue]#[INF][/] Press Enter to continue with mode:")
+        print("[bold blue]#[INF][/] Switched to mode ", self.navigationMode)
     
     def isSwitchingLane(self):
         """condition of line existing action, modes 3, 6

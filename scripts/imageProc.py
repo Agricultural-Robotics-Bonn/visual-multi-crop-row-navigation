@@ -1,4 +1,3 @@
-#!/usr/bin/env python2
 from __future__ import division
 from __future__ import print_function
 
@@ -87,13 +86,13 @@ class imageProc:
         
         # check if current image is not Empty or None
         if self.primaryRGBImg is None or len(self.primaryRGBImg) == 0:
-            print("#[ERR] CR-Scanner - Image is None, Check Topics or the Sensor !")
+            print("[bold red]#[ERR][/] CR-Scanner - Image is None, Check Topics or the Sensor !")
         else:
             # initial RGB image process to get mask GreenIDx and plant centers
             self.mask, self.greenIDX, self.plantObjects2D, self.plantCenters2D = self.processRGBImage(self.primaryRGBImg)
             self.numPlantsInScene = len(self.plantCenters2D[0])
         if not self.isInitialized:
-            print("#[INF] Find Crop Lane")
+            print("[bold blue]#[INF][/] Find Crop Lane")
             self.lines2D, self.linesROIs2D = self.findCropRows2D(self.primaryRGBImg)
             # self.lines3D, self.linesROIs3D = self.findCropRows3D(self.mask, self.plantCenters2D, self.primaryDepthImg)
             # merge both predictions to get more robust results!
@@ -134,7 +133,7 @@ class imageProc:
                 # set parameters indicating a successfull initialization
                 self.isInitialized = True
                 self.cropLaneFound = True
-                print('#[INF] Controller Initialized - Crop Rows:',
+                print('[bold blue]#[INF][/] Controller Initialized - Crop Rows:',
                         len(self.CropRows),
                         ', Window positions:',
                         self.CropRows[:,0].tolist())
@@ -362,7 +361,7 @@ class imageProc:
                 self.cropLaneFound = True
 
             else:
-                print("#[ERR] Lost at least one line")
+                print("[bold red]#[ERR][/] Lost at least one line")
                 self.cropLaneFound = False
         else:
             print('Running rest()..')
